@@ -1,0 +1,49 @@
+{
+	"name": "electrobun-pdf",
+	"version": "1.0.0",
+	"description": "Local-first document editor - edit PDFs and DOCX files, export to PDF",
+	"scripts": {
+		"start": "vite build && electrobun dev",
+		"dev": "electrobun dev --watch",
+		"dev:hmr": "concurrently \"bun run hmr\" \"bun run start\"",
+		"hmr": "vite --port 5173",
+		"build:canary": "vite build && electrobun build --env=canary"
+	},
+	"dependencies": {
+		"@tailwindcss/typography": "^0.5.19",
+		"@tiptap/extension-color": "^2.11.0",
+		"@tiptap/extension-highlight": "^2.11.0",
+		"@tiptap/extension-image": "^2.11.0",
+		"@tiptap/extension-table": "^2.11.0",
+		"@tiptap/extension-table-cell": "^2.11.0",
+		"@tiptap/extension-table-header": "^2.11.0",
+		"@tiptap/extension-table-row": "^2.11.0",
+		"@tiptap/extension-text-align": "^2.11.0",
+		"@tiptap/extension-text-style": "^2.11.0",
+		"@tiptap/extension-underline": "^2.11.0",
+		"@tiptap/react": "^2.11.0",
+		"@tiptap/starter-kit": "^2.11.0",
+		"canvas": "^3.2.1",
+		"electrobun": "1.15.1",
+		"html2canvas": "^1.4.1",
+		"jspdf": "^2.5.2",
+		"lucide-react": "^0.460.0",
+		"mammoth": "^1.8.0",
+		"mupdf": "^1.27.0",
+		"react": "^18.3.1",
+		"react-dom": "^18.3.1",
+		"unpdf": "^1.4.0"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"@types/react": "^18.3.12",
+		"@types/react-dom": "^18.3.1",
+		"@vitejs/plugin-react": "^4.3.4",
+		"autoprefixer": "^10.4.20",
+		"concurrently": "^9.1.0",
+		"postcss": "^8.4.49",
+		"tailwindcss": "^3.4.16",
+		"typescript": "^5.7.2",
+		"vite": "^6.0.3"
+	}
+}

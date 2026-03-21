@@ -1,0 +1,145 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+	body {
+		@apply bg-surface-950 text-surface-200 font-sans antialiased;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+	}
+
+	::selection {
+		@apply bg-accent/20 text-accent-700;
+	}
+}
+
+/* Editor prose styling */
+.ProseMirror {
+	outline: none;
+	@apply text-surface-800;
+}
+
+.ProseMirror h1 {
+	@apply text-3xl font-bold mb-4 mt-6 text-surface-900 tracking-tight;
+}
+
+.ProseMirror h2 {
+	@apply text-2xl font-semibold mb-3 mt-5 text-surface-900 tracking-tight;
+}
+
+.ProseMirror h3 {
+	@apply text-xl font-medium mb-2 mt-4 text-surface-800;
+}
+
+.ProseMirror p {
+	@apply mb-3 leading-relaxed;
+}
+
+.ProseMirror ul {
+	@apply list-disc pl-6 mb-3;
+}
+
+.ProseMirror ol {
+	@apply list-decimal pl-6 mb-3;
+}
+
+.ProseMirror li {
+	@apply mb-1;
+}
+
+.ProseMirror blockquote {
+	@apply border-l-2 border-accent/40 pl-4 italic text-surface-500 my-4;
+}
+
+.ProseMirror hr {
+	@apply border-t border-surface-200 my-6;
+}
+
+.ProseMirror code {
+	@apply bg-surface-100 px-1.5 py-0.5 rounded text-sm font-mono text-accent-600;
+}
+
+.ProseMirror pre {
+	@apply bg-surface-900 text-surface-200 rounded-lg p-4 my-4 overflow-x-auto font-mono text-sm;
+}
+
+.ProseMirror pre code {
+	@apply bg-transparent p-0 text-inherit;
+}
+
+.ProseMirror img {
+	@apply max-w-full h-auto rounded;
+}
+
+.ProseMirror mark {
+	@apply bg-accent-100 text-accent-700 px-0.5 rounded;
+}
+
+/* Table styles */
+.ProseMirror table {
+	@apply border-collapse w-full my-4;
+}
+
+.ProseMirror th {
+	@apply border border-surface-200 px-3 py-2 bg-surface-50 font-semibold text-left text-surface-700;
+}
+
+.ProseMirror td {
+	@apply border border-surface-200 px-3 py-2;
+}
+
+.ProseMirror .selectedCell {
+	@apply bg-accent-50;
+}
+
+.ProseMirror ::selection {
+	@apply bg-accent-100;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+	content: "Start writing or open a document...";
+	@apply text-surface-400 float-left h-0 pointer-events-none;
+}
+
+/* Noise texture for backgrounds */
+.noise-bg {
+	position: relative;
+}
+.noise-bg::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	opacity: 0.025;
+	background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+	pointer-events: none;
+	z-index: 0;
+}
+
+/* Toolbar transition */
+.toolbar-btn {
+	@apply relative p-1.5 rounded-md transition-all duration-150;
+}
+.toolbar-btn:hover {
+	@apply bg-white/10;
+}
+.toolbar-btn.active {
+	@apply bg-accent/20 text-accent;
+}
+.toolbar-btn:disabled {
+	@apply opacity-30 cursor-not-allowed;
+}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar {
+	width: 8px;
+}
+::-webkit-scrollbar-track {
+	@apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+	@apply bg-surface-300 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+	@apply bg-surface-400;
+}
