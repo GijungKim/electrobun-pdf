@@ -1,6 +1,36 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@source "./**/*.{js,ts,jsx,tsx,html}";
+
+@theme {
+	--font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+		"Helvetica Neue", Arial, sans-serif;
+	--font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+		"Liberation Mono", monospace;
+
+	--color-surface-50: #fafaf8;
+	--color-surface-100: #f3f2ee;
+	--color-surface-200: #e8e6e0;
+	--color-surface-300: #d4d1c8;
+	--color-surface-400: #a8a498;
+	--color-surface-500: #8a8678;
+	--color-surface-600: #6b675c;
+	--color-surface-700: #4a473f;
+	--color-surface-800: #2a2824;
+	--color-surface-900: #1a1916;
+	--color-surface-950: #0f0e0d;
+
+	--color-accent: #e67e22;
+	--color-accent-50: #fef6eb;
+	--color-accent-100: #fde8cc;
+	--color-accent-200: #fbd099;
+	--color-accent-300: #f5a623;
+	--color-accent-400: #e67e22;
+	--color-accent-500: #d35400;
+	--color-accent-600: #b34700;
+	--color-accent-700: #8a3700;
+}
 
 @layer base {
 	body {
