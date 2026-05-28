@@ -26,7 +26,7 @@
 		"canvas": "^3.2.1",
 		"electrobun": "1.15.1",
 		"html2canvas": "^1.4.1",
-		"jspdf": "^2.5.2",
+		"jspdf": "^4.0.0",
 		"lucide-react": "^0.460.0",
 		"mammoth": "^1.8.0",
 		"mupdf": "^1.27.0",
