@@ -24,7 +24,7 @@
 		"@tiptap/react": "^2.11.0",
 		"@tiptap/starter-kit": "^2.11.0",
 		"canvas": "^3.2.1",
-		"electrobun": "1.15.1",
+		"electrobun": "1.18.1",
 		"html2canvas": "^1.4.1",
 		"jspdf": "^4.0.0",
 		"lucide-react": "^0.460.0",
