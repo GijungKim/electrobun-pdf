@@ -49,8 +49,10 @@ function Btn({
 }) {
 	return (
 		<button
+			type="button"
 			onClick={onClick}
 			title={title}
+			aria-label={title}
 			className={`toolbar-btn ${isActive ? "active" : "text-surface-400 hover:text-surface-200"} cursor-pointer`}
 		>
 			{children}
@@ -112,8 +114,10 @@ export default function PdfToolbar({
 				{PRESET_COLORS.map((c) => (
 					<button
 						key={c}
+						type="button"
 						onClick={() => onColorChange(c)}
 						title={c}
+						aria-label={`Annotation color ${c}`}
 						className={`w-4 h-4 rounded-full cursor-pointer transition-all duration-150 ${
 							color === c
 								? "ring-1.5 ring-accent ring-offset-1 ring-offset-surface-900 scale-110"
@@ -130,6 +134,7 @@ export default function PdfToolbar({
 						type="color"
 						value={color}
 						onChange={(e) => onColorChange(e.target.value)}
+						aria-label="Custom annotation color"
 						className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
 					/>
 					<div
@@ -147,11 +152,13 @@ export default function PdfToolbar({
 			{/* Stroke width */}
 			<div className="flex items-center gap-0.5 text-surface-400">
 				<button
+					type="button"
 					onClick={() =>
 						onStrokeWidthChange(Math.max(1, strokeWidth - 1))
 					}
 					className="p-1 rounded hover:bg-white/10 cursor-pointer transition-colors"
 					title="Decrease stroke"
+					aria-label="Decrease stroke width"
 				>
 					<Minus size={12} />
 				</button>
@@ -172,11 +179,13 @@ export default function PdfToolbar({
 					</span>
 				</div>
 				<button
+					type="button"
 					onClick={() =>
 						onStrokeWidthChange(Math.min(12, strokeWidth + 1))
 					}
 					className="p-1 rounded hover:bg-white/10 cursor-pointer transition-colors"
 					title="Increase stroke"
+					aria-label="Increase stroke width"
 				>
 					<Plus size={12} />
 				</button>

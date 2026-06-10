@@ -44,9 +44,11 @@ function Btn({
 }) {
 	return (
 		<button
+			type="button"
 			onClick={onClick}
 			disabled={disabled}
 			title={title}
+			aria-label={title}
 			className={`toolbar-btn ${isActive ? "active" : "text-surface-400 hover:text-surface-200"} ${disabled ? "" : "cursor-pointer"}`}
 		>
 			{children}
