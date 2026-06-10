@@ -71,6 +71,10 @@ export function triggerOpen() {
 	electroview.rpc!.send.triggerOpen({});
 }
 
+export function openFileData(fileName: string, data: string) {
+	electroview.rpc!.send.openFileData({ fileName, data });
+}
+
 export function triggerExport(data: string, fileName: string) {
 	electroview.rpc!.send.triggerExport({ data, fileName });
 }

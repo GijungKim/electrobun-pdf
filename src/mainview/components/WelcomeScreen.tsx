@@ -2,11 +2,12 @@ import { FolderOpen, Lock, Zap, FileText } from "lucide-react";
 
 interface WelcomeScreenProps {
 	onOpen: () => void;
+	status?: string;
 }
 
-export default function WelcomeScreen({ onOpen }: WelcomeScreenProps) {
+export default function WelcomeScreen({ onOpen, status }: WelcomeScreenProps) {
 	return (
-		<div className="h-screen flex flex-col items-center justify-center bg-surface-950 noise-bg overflow-hidden relative">
+		<div className="h-full flex flex-col items-center justify-center bg-surface-950 noise-bg overflow-hidden relative">
 			<div className="relative z-10 flex flex-col items-center">
 				{/* Brand mark */}
 				<div className="mb-10 flex items-center gap-3">
@@ -27,6 +28,7 @@ export default function WelcomeScreen({ onOpen }: WelcomeScreenProps) {
 
 				{/* CTA */}
 				<button
+					type="button"
 					onClick={onOpen}
 					className="group flex items-center gap-2.5 px-7 py-3 bg-accent text-white rounded-lg font-medium tracking-wide transition-all duration-200 hover:bg-accent-500 hover:shadow-lg hover:shadow-accent/20 active:scale-[0.98]"
 				>
@@ -34,8 +36,10 @@ export default function WelcomeScreen({ onOpen }: WelcomeScreenProps) {
 					<span>Open Document</span>
 				</button>
 
-				<p className="mt-3 text-xs text-surface-600">
-					PDF, DOCX
+				<p
+					className={`mt-3 text-xs ${status ? "text-accent-300" : "text-surface-600"}`}
+				>
+					{status || "PDF, DOCX — or drop a file anywhere"}
 				</p>
 
 				{/* Feature pills */}

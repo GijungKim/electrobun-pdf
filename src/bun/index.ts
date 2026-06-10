@@ -25,6 +25,67 @@ async function getMainViewUrl(): Promise<string> {
 	return "views://mainview/index.html";
 }
 
+async function processDocument(fileName: string, nodeBuffer: Buffer) {
+	const fileType = fileName.split(".").pop()?.toLowerCase() || "";
+	console.log(`[bun] Processing: ${fileName} (${fileType}, ${nodeBuffer.byteLength} bytes)`);
+
+	mainWindow.webview.rpc.send.statusUpdate({
+		status: "Parsing document...",
+	});
+
+	try {
+		if (fileType === "pdf") {
+			const renderer = new PdfRenderer(nodeBuffer);
+			try {
+				const totalPages = renderer.pageCount;
+				console.log(`[bun] PDF has ${totalPages} pages, rendering...`);
+
+				for (let p = 1; p <= totalPages; p++) {
+					mainWindow.webview.rpc.send.statusUpdate({
+						status: `Rendering page ${p} of ${totalPages}...`,
+					});
+					console.log(`[bun] Rendering page ${p}/${totalPages}...`);
+					const imageDataUrl = renderer.renderPage(p, 2);
+					console.log(
+						`[bun] Page ${p} rendered (${imageDataUrl.length} chars)`,
+					);
+					mainWindow.webview.rpc.send.pdfPageReady({
+						pageNum: p,
+						totalPages,
+						imageDataUrl,
+					});
+				}
+
+				mainWindow.webview.rpc.send.pdfDone({ fileName, totalPages });
+				console.log("[bun] All PDF pages sent");
+			} finally {
+				renderer.destroy();
+			}
+		} else if (fileType === "docx") {
+			const arrayBuffer = nodeBuffer.buffer.slice(
+				nodeBuffer.byteOffset,
+				nodeBuffer.byteOffset + nodeBuffer.byteLength,
+			) as ArrayBuffer;
+			const html = await parseDocx(arrayBuffer);
+			console.log(`[bun] DOCX parsed to ${html.length} chars`);
+			mainWindow.webview.rpc.send.fileOpened({
+				fileName,
+				html,
+				fileType,
+			});
+		} else {
+			mainWindow.webview.rpc.send.statusUpdate({
+				status: `Unsupported file type: .${fileType} (PDF and DOCX only)`,
+			});
+		}
+	} catch (err) {
+		console.error("[bun] Error:", err);
+		mainWindow.webview.rpc.send.statusUpdate({
+			status: `Error: ${err}`,
+		});
+	}
+}
+
 const rpc = BrowserView.defineRPC<AppRPC>({
 	maxRequestTime: 60000,
 	handlers: {
@@ -49,63 +110,13 @@ const rpc = BrowserView.defineRPC<AppRPC>({
 
 				const filePath = paths[0];
 				const fileName = filePath.split(/[/\\]/).pop() || "document";
-				const fileType = fileName.split(".").pop()?.toLowerCase() || "";
-				console.log(`[bun] Selected: ${fileName} (${fileType})`);
+				const buffer = await Bun.file(filePath).arrayBuffer();
+				await processDocument(fileName, Buffer.from(buffer));
+			},
 
-				mainWindow.webview.rpc.send.statusUpdate({
-					status: "Parsing document...",
-				});
-
-				try {
-					const file = Bun.file(filePath);
-					const buffer = await file.arrayBuffer();
-					const nodeBuffer = Buffer.from(buffer);
-					console.log(`[bun] Read ${buffer.byteLength} bytes`);
-
-					if (fileType === "pdf") {
-						const renderer = new PdfRenderer(nodeBuffer);
-						try {
-							const totalPages = renderer.pageCount;
-							console.log(`[bun] PDF has ${totalPages} pages, rendering...`);
-
-							for (let p = 1; p <= totalPages; p++) {
-								mainWindow.webview.rpc.send.statusUpdate({
-									status: `Rendering page ${p} of ${totalPages}...`,
-								});
-								console.log(`[bun] Rendering page ${p}/${totalPages}...`);
-								const imageDataUrl = renderer.renderPage(p, 2);
-								console.log(
-									`[bun] Page ${p} rendered (${imageDataUrl.length} chars)`,
-								);
-								mainWindow.webview.rpc.send.pdfPageReady({
-									pageNum: p,
-									totalPages,
-									imageDataUrl,
-								});
-							}
-
-							mainWindow.webview.rpc.send.pdfDone({ fileName, totalPages });
-							console.log("[bun] All PDF pages sent");
-						} finally {
-							renderer.destroy();
-						}
-					} else {
-						const html = await parseDocx(buffer);
-						console.log(
-							`[bun] DOCX parsed to ${html.length} chars`,
-						);
-						mainWindow.webview.rpc.send.fileOpened({
-							fileName,
-							html,
-							fileType,
-						});
-					}
-				} catch (err) {
-					console.error("[bun] Error:", err);
-					mainWindow.webview.rpc.send.statusUpdate({
-						status: `Error: ${err}`,
-					});
-				}
+			openFileData: async ({ fileName, data }) => {
+				console.log(`[bun] openFileData received: ${fileName}`);
+				await processDocument(fileName, Buffer.from(data, "base64"));
 			},
 
 			triggerExport: async ({ data, fileName }) => {

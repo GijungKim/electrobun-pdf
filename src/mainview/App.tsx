@@ -22,6 +22,7 @@ import PdfAnnotationLayer, {
 import {
 	triggerOpen,
 	triggerExport,
+	openFileData,
 	onMenuAction,
 	onFileOpened,
 	onPdfPageReady,
@@ -29,7 +30,12 @@ import {
 	onFileSaved,
 	onStatusUpdate,
 } from "./rpc";
-import { exportToPdf, exportEditorToPdf, type ExportAnnotation } from "./utils/fileHandlers";
+import {
+	exportToPdf,
+	exportEditorToPdf,
+	uint8ToBase64,
+	type ExportAnnotation,
+} from "./utils/fileHandlers";
 
 export default function App() {
 	const [fileName, setFileName] = useState<string | null>(null);
@@ -37,12 +43,15 @@ export default function App() {
 	const [showEditor, setShowEditor] = useState(false);
 	const [pdfPages, setPdfPages] = useState<string[]>([]);
 	const [isPdf, setIsPdf] = useState(false);
-	const [pdfReady, setPdfReady] = useState(false);
+	const pdfReadyRef = useRef(false);
 	const [activeTool, setActiveTool] = useState<Tool>("select");
 	const [strokeWidth, setStrokeWidth] = useState(3);
 	const [annotationColor, setAnnotationColor] = useState("#000000");
 	const [activePageNum, setActivePageNum] = useState<number>(1);
+	const [totalPages, setTotalPages] = useState(0);
 	const [pdfSessionId, setPdfSessionId] = useState(0);
+	const [isDraggingFile, setIsDraggingFile] = useState(false);
+	const dragCounter = useRef(0);
 	const pageAnnotationsRef = useRef<Map<number, ExportAnnotation[]>>(new Map());
 	const editorContentRef = useRef<HTMLDivElement>(null);
 
@@ -84,7 +93,7 @@ export default function App() {
 	);
 
 	const handleExportPdf = useCallback(async () => {
-		if (isPdf && !pdfReady) {
+		if (isPdf && !pdfReadyRef.current) {
 			setStatus("Still rendering pages, please wait...");
 			return;
 		}
@@ -109,15 +118,7 @@ export default function App() {
 				pdfBytes = await exportEditorToPdf(editorEl);
 			}
 
-			// Convert to base64 in chunks to avoid stack overflow on large files
-			const bytes = new Uint8Array(pdfBytes);
-			let base64 = "";
-			const chunkSize = 8192;
-			for (let i = 0; i < bytes.length; i += chunkSize) {
-				const chunk = bytes.subarray(i, i + chunkSize);
-				base64 += String.fromCharCode(...chunk);
-			}
-			base64 = btoa(base64);
+			const base64 = uint8ToBase64(new Uint8Array(pdfBytes));
 
 			const baseName = fileName
 				? fileName.replace(/\.[^.]+$/, "")
@@ -128,7 +129,88 @@ export default function App() {
 			console.error("Error exporting PDF:", err);
 			setStatus("Error exporting PDF");
 		}
-	}, [fileName, isPdf, pdfReady, pdfPages]);
+	}, [fileName, isPdf, pdfPages]);
+
+	// Drag & drop to open files
+	const handleDroppedFile = useCallback(async (file: File) => {
+		const ext = file.name.split(".").pop()?.toLowerCase();
+		if (ext !== "pdf" && ext !== "docx") {
+			setStatus(`Unsupported file type: ${file.name} (PDF and DOCX only)`);
+			return;
+		}
+		setStatus(`Reading ${file.name}...`);
+		try {
+			const bytes = new Uint8Array(await file.arrayBuffer());
+			openFileData(file.name, uint8ToBase64(bytes));
+		} catch (err) {
+			console.error("Error reading dropped file:", err);
+			setStatus("Error reading dropped file");
+		}
+	}, []);
+
+	const handleDragEnter = useCallback((e: React.DragEvent) => {
+		e.preventDefault();
+		dragCounter.current++;
+		if (e.dataTransfer.types.includes("Files")) setIsDraggingFile(true);
+	}, []);
+
+	const handleDragOver = useCallback((e: React.DragEvent) => {
+		e.preventDefault();
+	}, []);
+
+	const handleDragLeave = useCallback((e: React.DragEvent) => {
+		e.preventDefault();
+		dragCounter.current--;
+		if (dragCounter.current <= 0) {
+			dragCounter.current = 0;
+			setIsDraggingFile(false);
+		}
+	}, []);
+
+	const handleDrop = useCallback(
+		(e: React.DragEvent) => {
+			e.preventDefault();
+			dragCounter.current = 0;
+			setIsDraggingFile(false);
+			const file = e.dataTransfer.files?.[0];
+			if (file) handleDroppedFile(file);
+		},
+		[handleDroppedFile],
+	);
+
+	// Prevent the webview from navigating away when a file is dropped
+	// outside our handlers
+	useEffect(() => {
+		const prevent = (e: DragEvent) => e.preventDefault();
+		window.addEventListener("dragover", prevent);
+		window.addEventListener("drop", prevent);
+		return () => {
+			window.removeEventListener("dragover", prevent);
+			window.removeEventListener("drop", prevent);
+		};
+	}, []);
+
+	// Track which PDF page is centered in the viewport
+	const handleScroll = useCallback(() => {
+		if (!isPdf) return;
+		const container = editorContentRef.current;
+		if (!container) return;
+		const rect = container.getBoundingClientRect();
+		const mid = rect.top + rect.height / 2;
+		let best = activePageNum;
+		let bestDist = Infinity;
+		container
+			.querySelectorAll<HTMLElement>("[data-pdf-page]")
+			.forEach((el) => {
+				const r = el.getBoundingClientRect();
+				const dist = Math.abs((r.top + r.bottom) / 2 - mid);
+				if (dist < bestDist) {
+					bestDist = dist;
+					best = Number(el.dataset.pdfPage);
+				}
+			});
+		setActivePageNum(best);
+	}, [isPdf, activePageNum]);
 
 	// Keyboard shortcuts for tools
 	useEffect(() => {
@@ -164,6 +246,7 @@ export default function App() {
 			setPdfPages([]);
 			setIsPdf(false);
 			setActiveTool("select");
+			setTotalPages(0);
 			pageAnnotationsRef.current.clear();
 			setFileName(data.fileName);
 			editor?.commands.setContent(data.html);
@@ -172,10 +255,11 @@ export default function App() {
 		});
 
 		onPdfPageReady((data) => {
+			setTotalPages(data.totalPages);
 			setPdfPages((prev) => {
 				if (data.pageNum === 1) {
 					setIsPdf(true);
-					setPdfReady(false);
+					pdfReadyRef.current = false;
 					setActiveTool("select");
 					setActivePageNum(1);
 					setPdfSessionId((id) => id + 1);
@@ -191,7 +275,7 @@ export default function App() {
 
 		onPdfDone((data) => {
 			setFileName(data.fileName);
-			setPdfReady(true);
+			pdfReadyRef.current = true;
 			setStatus("Ready");
 		});
 
@@ -213,12 +297,40 @@ export default function App() {
 		});
 	}, [editor, handleOpen, handleExportPdf]);
 
+	const dropOverlay = isDraggingFile ? (
+		<div className="absolute inset-0 z-50 bg-surface-950/80 backdrop-blur-sm flex items-center justify-center pointer-events-none">
+			<div className="border-2 border-dashed border-accent rounded-xl px-12 py-10 text-center">
+				<p className="text-surface-100 text-lg font-medium">
+					Drop to open
+				</p>
+				<p className="text-surface-500 text-sm mt-1">PDF or DOCX</p>
+			</div>
+		</div>
+	) : null;
+
 	if (!showEditor) {
-		return <WelcomeScreen onOpen={handleOpen} />;
+		return (
+			<div
+				className="h-screen relative"
+				onDragEnter={handleDragEnter}
+				onDragOver={handleDragOver}
+				onDragLeave={handleDragLeave}
+				onDrop={handleDrop}
+			>
+				<WelcomeScreen onOpen={handleOpen} status={status} />
+				{dropOverlay}
+			</div>
+		);
 	}
 
 	return (
-		<div className="h-screen flex flex-col bg-surface-950">
+		<div
+			className="h-screen relative flex flex-col bg-surface-950"
+			onDragEnter={handleDragEnter}
+			onDragOver={handleDragOver}
+			onDragLeave={handleDragLeave}
+			onDrop={handleDrop}
+		>
 			{isPdf ? (
 				<PdfToolbar
 					activeTool={activeTool}
@@ -240,6 +352,7 @@ export default function App() {
 			<div
 				ref={editorContentRef}
 				className="flex-1 overflow-y-auto bg-surface-100"
+				onScroll={handleScroll}
 			>
 				{isPdf ? (
 					<div className="py-6 space-y-6">
@@ -281,7 +394,10 @@ export default function App() {
 				fileName={fileName}
 				status={status}
 				wordCount={isPdf ? 0 : wordCount}
+				currentPage={activePageNum}
+				pageCount={isPdf ? totalPages : 0}
 			/>
+			{dropOverlay}
 		</div>
 	);
 }

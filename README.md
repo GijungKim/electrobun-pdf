@@ -6,11 +6,13 @@ Local-first PDF & DOCX editor built with [Electrobun](https://github.com/blackbo
 
 ## Features
 
-- **Open PDF & DOCX** files with a native file picker
+- **Open PDF & DOCX** files with a native file picker — or **drag & drop** a file anywhere in the window
 - **Pixel-perfect PDF rendering** via [MuPDF](https://mupdf.com/) WASM — logos, fonts, form fields all preserved
 - **Annotate PDFs** — add text, draw circles/ovals, choose colors, adjust stroke width
 - **Drag & drop annotations** — reposition text and shapes after placing them
+- **Delete annotations** — hover any annotation in select mode and click the red **×**
 - **Undo/Redo** — Cmd+Z / Cmd+Shift+Z
+- **Page indicator** — the status bar tracks the current page as you scroll
 - **Export to PDF** — saves annotated documents with a native folder picker
 - **DOCX editing** — full rich text editor powered by [TipTap](https://tiptap.dev/)
 - **Lightweight** — ~12MB app bundle using system WebKit (no bundled Chromium)
@@ -28,10 +30,13 @@ Local-first PDF & DOCX editor built with [Electrobun](https://github.com/blackbo
 | `V` | Select / move tool |
 | `T` | Text annotation tool |
 | `C` | Circle / oval tool |
-| `Esc` | Back to select mode |
+| `Esc` | Back to select mode / finish text editing |
 | `Cmd+Z` | Undo |
 | `Cmd+Shift+Z` | Redo |
 | Double-click text | Edit placed text |
+| Hover annotation + `×` | Delete annotation (select mode) |
+
+Empty text boxes are discarded automatically when you click away, so a stray click with the text tool never leaves invisible annotations behind.
 
 ## Getting Started
 
@@ -85,6 +90,7 @@ src/
 |------|-------------|
 | **Open PDF** | Bun reads the file, MuPDF (WASM) renders each page as a PNG, sent to webview page-by-page via fire-and-forget RPC |
 | **Open DOCX** | Bun reads the file, Mammoth converts to HTML, sent to webview and loaded into TipTap editor |
+| **Drag & drop** | The webview reads the dropped file's bytes and sends them to Bun over RPC (base64), then the same parse/render path runs |
 | **Annotate** | React components overlay SVG circles and positioned text inputs on top of page images |
 | **Export** | jsPDF composites page images + annotation coordinates directly onto PDF pages (no html2canvas) |
 
@@ -97,7 +103,6 @@ src/
 | [Mammoth](https://www.npmjs.com/package/mammoth) | DOCX to HTML conversion |
 | [TipTap](https://tiptap.dev/) | Rich text editor (ProseMirror) |
 | [jsPDF](https://www.npmjs.com/package/jspdf) | PDF generation for export |
-| [unpdf](https://www.npmjs.com/package/unpdf) | PDF text extraction |
 
 ## License
 

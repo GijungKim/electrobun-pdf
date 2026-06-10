@@ -5,6 +5,7 @@ export type AppRPC = {
 		requests: {};
 		messages: {
 			triggerOpen: {};
+			openFileData: { fileName: string; data: string };
 			triggerExport: { data: string; fileName: string };
 		};
 	}>;

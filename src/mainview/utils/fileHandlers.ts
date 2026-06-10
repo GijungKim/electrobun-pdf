@@ -19,6 +19,18 @@ export interface ExportPage {
 }
 
 /**
+ * Convert bytes to base64 in chunks to avoid stack overflow on large files.
+ */
+export function uint8ToBase64(bytes: Uint8Array): string {
+	let binary = "";
+	const chunkSize = 8192;
+	for (let i = 0; i < bytes.length; i += chunkSize) {
+		binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+	}
+	return btoa(binary);
+}
+
+/**
  * Generate a PDF by drawing page images + annotations directly on jsPDF canvas.
  * No html2canvas — works reliably in Electrobun's webview.
  */
@@ -32,18 +44,24 @@ export async function exportToPdf(pages: ExportPage[]): Promise<Uint8Array> {
 	const contentWidth = pdfWidth - margin * 2;
 	const contentHeight = pdfHeight - margin * 2;
 
+	// Decode all page images up front so they load in parallel
+	const images = await Promise.all(
+		pages.map(
+			(page) =>
+				new Promise<HTMLImageElement>((resolve, reject) => {
+					const img = new Image();
+					img.onload = () => resolve(img);
+					img.onerror = reject;
+					img.src = page.imageDataUrl;
+				}),
+		),
+	);
+
 	for (let i = 0; i < pages.length; i++) {
 		if (i > 0) pdf.addPage();
 
 		const page = pages[i];
-
-		// Load image to get dimensions
-		const img = new Image();
-		await new Promise<void>((resolve, reject) => {
-			img.onload = () => resolve();
-			img.onerror = reject;
-			img.src = page.imageDataUrl;
-		});
+		const img = images[i];
 
 		// Fit image to page
 		const imgAspect = img.width / img.height;
