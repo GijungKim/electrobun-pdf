@@ -479,7 +479,7 @@ export default function PdfAnnotationLayer({
 										onPageFocus?.(pageNum);
 									}}
 								>
-									\u00D7
+									×
 								</button>
 							)}
 						</>
