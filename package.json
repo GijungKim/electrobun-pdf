@@ -7,7 +7,9 @@
     "dev": "electrobun dev --watch",
     "dev:hmr": "concurrently \"bun run hmr\" \"bun run start\"",
     "hmr": "vite --port 5173",
-    "build:canary": "vite build && electrobun build --env=canary"
+    "build:canary": "vite build && electrobun build --env=canary",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.19",
