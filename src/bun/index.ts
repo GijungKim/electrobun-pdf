@@ -29,7 +29,7 @@ async function processDocument(fileName: string, nodeBuffer: Buffer) {
 	const fileType = fileName.split(".").pop()?.toLowerCase() || "";
 	console.log(`[bun] Processing: ${fileName} (${fileType}, ${nodeBuffer.byteLength} bytes)`);
 
-	mainWindow.webview.rpc.send.statusUpdate({
+	mainWindow.webview.rpc?.send.statusUpdate({
 		status: "Parsing document...",
 	});
 
@@ -41,7 +41,7 @@ async function processDocument(fileName: string, nodeBuffer: Buffer) {
 				console.log(`[bun] PDF has ${totalPages} pages, rendering...`);
 
 				for (let p = 1; p <= totalPages; p++) {
-					mainWindow.webview.rpc.send.statusUpdate({
+					mainWindow.webview.rpc?.send.statusUpdate({
 						status: `Rendering page ${p} of ${totalPages}...`,
 					});
 					console.log(`[bun] Rendering page ${p}/${totalPages}...`);
@@ -49,14 +49,14 @@ async function processDocument(fileName: string, nodeBuffer: Buffer) {
 					console.log(
 						`[bun] Page ${p} rendered (${imageDataUrl.length} chars)`,
 					);
-					mainWindow.webview.rpc.send.pdfPageReady({
+					mainWindow.webview.rpc?.send.pdfPageReady({
 						pageNum: p,
 						totalPages,
 						imageDataUrl,
 					});
 				}
 
-				mainWindow.webview.rpc.send.pdfDone({ fileName, totalPages });
+				mainWindow.webview.rpc?.send.pdfDone({ fileName, totalPages });
 				console.log("[bun] All PDF pages sent");
 			} finally {
 				renderer.destroy();
@@ -68,19 +68,19 @@ async function processDocument(fileName: string, nodeBuffer: Buffer) {
 			) as ArrayBuffer;
 			const html = await parseDocx(arrayBuffer);
 			console.log(`[bun] DOCX parsed to ${html.length} chars`);
-			mainWindow.webview.rpc.send.fileOpened({
+			mainWindow.webview.rpc?.send.fileOpened({
 				fileName,
 				html,
 				fileType,
 			});
 		} else {
-			mainWindow.webview.rpc.send.statusUpdate({
+			mainWindow.webview.rpc?.send.statusUpdate({
 				status: `Unsupported file type: .${fileType} (PDF and DOCX only)`,
 			});
 		}
 	} catch (err) {
 		console.error("[bun] Error:", err);
-		mainWindow.webview.rpc.send.statusUpdate({
+		mainWindow.webview.rpc?.send.statusUpdate({
 			status: `Error: ${err}`,
 		});
 	}
@@ -104,7 +104,7 @@ const rpc = BrowserView.defineRPC<AppRPC>({
 
 				if (!paths || paths.length === 0) {
 					console.log("[bun] No file selected");
-					mainWindow.webview.rpc.send.statusUpdate({ status: "" });
+					mainWindow.webview.rpc?.send.statusUpdate({ status: "" });
 					return;
 				}
 
@@ -132,7 +132,7 @@ const rpc = BrowserView.defineRPC<AppRPC>({
 
 					if (!paths || paths.length === 0) {
 						console.log("[bun] Export cancelled");
-						mainWindow.webview.rpc.send.statusUpdate({ status: "Export cancelled" });
+						mainWindow.webview.rpc?.send.statusUpdate({ status: "Export cancelled" });
 						return;
 					}
 
@@ -152,13 +152,13 @@ const rpc = BrowserView.defineRPC<AppRPC>({
 					await Bun.write(savePath, buffer);
 					console.log(`[bun] Exported ${buffer.length} bytes to ${savePath}`);
 					Utils.showItemInFolder(savePath);
-					mainWindow.webview.rpc.send.fileSaved({
+					mainWindow.webview.rpc?.send.fileSaved({
 						success: true,
 						path: savePath,
 					});
 				} catch (err) {
 					console.error("[bun] Save error:", err);
-					mainWindow.webview.rpc.send.fileSaved({ success: false });
+					mainWindow.webview.rpc?.send.fileSaved({ success: false });
 				}
 			},
 		},
@@ -222,7 +222,7 @@ ApplicationMenu.setApplicationMenu([
 Electrobun.events.on("application-menu-clicked", (e) => {
 	const action = e.data.action;
 	if (action) {
-		mainWindow.webview.rpc.send.menuAction({ action });
+		mainWindow.webview.rpc?.send.menuAction({ action });
 	}
 });
 
