@@ -1,4 +1,5 @@
 import { fitImageToPage } from "./geometry";
+import { docToBlocks, renderBlocksToPdf, type ProseNode } from "./docExport";
 
 export interface ExportAnnotation {
 	type: "text" | "circle";
@@ -112,36 +113,10 @@ export async function exportToPdf(pages: ExportPage[]): Promise<Uint8Array> {
 }
 
 /**
- * Export DOCX editor content. Uses a simple canvas approach.
+ * Export the DOCX editor's document (ProseMirror JSON) to PDF, preserving
+ * structure: headings, paragraphs, bullet/numbered lists, blockquotes, and
+ * whole-block bold/italic. See src/mainview/utils/docExport.ts.
  */
-export async function exportEditorToPdf(
-	editorElement: HTMLElement,
-): Promise<Uint8Array> {
-	const { default: jsPDF } = await import("jspdf");
-
-	// Create a temporary canvas by manually rendering
-	const pdf = new jsPDF("p", "mm", "a4");
-
-	// Get all text content and write it simply
-	// This is a fallback - for DOCX the text content is what matters
-	const text = editorElement.innerText || "";
-	const lines = pdf.splitTextToSize(text, 180);
-
-	pdf.setFontSize(11);
-	pdf.setTextColor("#1a1916");
-
-	const lineHeight = 5;
-	const margin = 15;
-	let y = margin;
-
-	for (const line of lines) {
-		if (y + lineHeight > 282) {
-			pdf.addPage();
-			y = margin;
-		}
-		pdf.text(line, margin, y);
-		y += lineHeight;
-	}
-
-	return new Uint8Array(pdf.output("arraybuffer"));
+export async function exportEditorToPdf(doc: ProseNode): Promise<Uint8Array> {
+	return renderBlocksToPdf(docToBlocks(doc));
 }

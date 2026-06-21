@@ -36,6 +36,7 @@ import {
 	uint8ToBase64,
 	type ExportAnnotation,
 } from "./utils/fileHandlers";
+import type { ProseNode } from "./utils/docExport";
 
 export default function App() {
 	const [fileName, setFileName] = useState<string | null>(null);
@@ -111,11 +112,8 @@ export default function App() {
 					}));
 				pdfBytes = await exportToPdf(exportPages);
 			} else {
-				const editorEl = editorContentRef.current?.querySelector(
-					".ProseMirror",
-				) as HTMLElement;
-				if (!editorEl) return;
-				pdfBytes = await exportEditorToPdf(editorEl);
+				if (!editor) return;
+				pdfBytes = await exportEditorToPdf(editor.getJSON() as unknown as ProseNode);
 			}
 
 			const base64 = uint8ToBase64(new Uint8Array(pdfBytes));
@@ -129,7 +127,7 @@ export default function App() {
 			console.error("Error exporting PDF:", err);
 			setStatus("Error exporting PDF");
 		}
-	}, [fileName, isPdf, pdfPages]);
+	}, [editor, fileName, isPdf, pdfPages]);
 
 	// Drag & drop to open files
 	const handleDroppedFile = useCallback(async (file: File) => {
