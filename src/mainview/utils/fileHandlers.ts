@@ -1,3 +1,5 @@
+import { fitImageToPage } from "./geometry";
+
 export interface ExportAnnotation {
 	type: "text" | "circle";
 	// percentages (0-100)
@@ -63,23 +65,14 @@ export async function exportToPdf(pages: ExportPage[]): Promise<Uint8Array> {
 		const page = pages[i];
 		const img = images[i];
 
-		// Fit image to page
-		const imgAspect = img.width / img.height;
-		const pageAspect = contentWidth / contentHeight;
-
-		let drawWidth: number;
-		let drawHeight: number;
-
-		if (imgAspect > pageAspect) {
-			drawWidth = contentWidth;
-			drawHeight = contentWidth / imgAspect;
-		} else {
-			drawHeight = contentHeight;
-			drawWidth = contentHeight * imgAspect;
-		}
-
-		const xOffset = margin + (contentWidth - drawWidth) / 2;
-		const yOffset = margin + (contentHeight - drawHeight) / 2;
+		// Fit image to page (centered, aspect-preserving)
+		const { drawWidth, drawHeight, xOffset, yOffset } = fitImageToPage(
+			img.width,
+			img.height,
+			contentWidth,
+			contentHeight,
+			margin,
+		);
 
 		// Draw page image
 		pdf.addImage(

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ExportAnnotation } from "../utils/fileHandlers";
+import { circleFromDrag } from "../utils/geometry";
 
 export type Tool = "select" | "text" | "circle";
 
@@ -240,12 +241,12 @@ export default function PdfAnnotationLayer({
 
 	const handleMouseUp = useCallback(() => {
 		if (drawingCircle) {
-			const cx = (drawingCircle.startX + drawingCircle.currentX) / 2;
-			const cy = (drawingCircle.startY + drawingCircle.currentY) / 2;
-			const rx =
-				Math.abs(drawingCircle.currentX - drawingCircle.startX) / 2;
-			const ry =
-				Math.abs(drawingCircle.currentY - drawingCircle.startY) / 2;
+			const { cx, cy, rx, ry } = circleFromDrag(
+				drawingCircle.startX,
+				drawingCircle.startY,
+				drawingCircle.currentX,
+				drawingCircle.currentY,
+			);
 
 			if (rx > 0.5 && ry > 0.5) {
 				setCircles((prev) => [
@@ -321,14 +322,12 @@ export default function PdfAnnotationLayer({
 	);
 
 	const previewCircle = drawingCircle
-		? {
-				cx: (drawingCircle.startX + drawingCircle.currentX) / 2,
-				cy: (drawingCircle.startY + drawingCircle.currentY) / 2,
-				rx:
-					Math.abs(drawingCircle.currentX - drawingCircle.startX) / 2,
-				ry:
-					Math.abs(drawingCircle.currentY - drawingCircle.startY) / 2,
-			}
+		? circleFromDrag(
+				drawingCircle.startX,
+				drawingCircle.startY,
+				drawingCircle.currentX,
+				drawingCircle.currentY,
+			)
 		: null;
 
 	const isDragging = !!draggingId;
