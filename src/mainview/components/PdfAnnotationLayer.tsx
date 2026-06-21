@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ExportAnnotation } from "../utils/fileHandlers";
-import { circleFromDrag } from "../utils/geometry";
+import { circleFromDrag, clampPercent } from "../utils/geometry";
 
 export type Tool = "select" | "text" | "circle";
 
@@ -215,8 +215,8 @@ export default function PdfAnnotationLayer({
 						t.id === draggingId
 							? {
 									...t,
-									x: pos.x - dragOffsetRef.current.x,
-									y: pos.y - dragOffsetRef.current.y,
+									x: clampPercent(pos.x - dragOffsetRef.current.x),
+									y: clampPercent(pos.y - dragOffsetRef.current.y),
 								}
 							: t,
 					),
@@ -228,8 +228,8 @@ export default function PdfAnnotationLayer({
 						c.id === draggingId
 							? {
 									...c,
-									cx: pos.x - dragOffsetRef.current.x,
-									cy: pos.y - dragOffsetRef.current.y,
+									cx: clampPercent(pos.x - dragOffsetRef.current.x),
+									cy: clampPercent(pos.y - dragOffsetRef.current.y),
 								}
 							: c,
 					),

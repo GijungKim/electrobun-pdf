@@ -1,5 +1,5 @@
 import { test, expect, describe } from "bun:test";
-import { circleFromDrag, fitImageToPage } from "./geometry";
+import { circleFromDrag, fitImageToPage, clampPercent } from "./geometry";
 
 describe("circleFromDrag", () => {
 	test("computes center and radii for a forward drag", () => {
@@ -49,5 +49,24 @@ describe("fitImageToPage", () => {
 		expect(fit.drawWidth).toBeCloseTo(143.5, 5);
 		expect(fit.xOffset).toBeCloseTo(33.25, 5);
 		expect(fit.yOffset).toBeCloseTo(5, 5);
+	});
+});
+
+describe("clampPercent", () => {
+	test("passes through an in-range value", () => {
+		expect(clampPercent(42)).toBe(42);
+	});
+
+	test("clamps a negative value to 0", () => {
+		expect(clampPercent(-5)).toBe(0);
+	});
+
+	test("clamps a value above 100 to 100", () => {
+		expect(clampPercent(137)).toBe(100);
+	});
+
+	test("keeps the exact bounds", () => {
+		expect(clampPercent(0)).toBe(0);
+		expect(clampPercent(100)).toBe(100);
 	});
 });
