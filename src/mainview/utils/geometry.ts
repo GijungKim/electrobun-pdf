@@ -64,3 +64,11 @@ export function fitImageToPage(
 
 	return { drawWidth, drawHeight, xOffset, yOffset };
 }
+
+/**
+ * Clamp a page-relative percentage coordinate to the visible page range
+ * [0, 100], so a dragged annotation can't leave the page (and be lost on export).
+ */
+export function clampPercent(value: number): number {
+	return Math.max(0, Math.min(100, value));
+}
