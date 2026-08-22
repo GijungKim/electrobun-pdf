@@ -25,7 +25,7 @@
     "@tiptap/extension-underline": "^3.0.0",
     "@tiptap/react": "^3.0.0",
     "@tiptap/starter-kit": "^3.0.0",
-    "electrobun": "1.18.1",
+    "electrobun": "2.0.1",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.0.0",
     "mammoth": "^1.8.0",
