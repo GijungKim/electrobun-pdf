@@ -1,4 +1,5 @@
 node_modules/
+.hutch/
 dist/
 build/
 *.DS_Store

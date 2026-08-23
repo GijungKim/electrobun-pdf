@@ -14,5 +14,6 @@ jobs:
         with:
           bun-version: 1.4.0
       - run: bun install --frozen-lockfile
+      - run: bunx electrobun sync
       - run: bun run typecheck
       - run: bun test
