@@ -117,12 +117,109 @@ export function docToBlocks(doc: ProseNode): PdfBlock[] {
 	return blocks;
 }
 
+export interface LineRun {
+	text: string;
+	bold: boolean;
+	italic: boolean;
+	/** Horizontal offset from the line start, in the measurer's units. */
+	x: number;
+}
+
+/** Width of `text` when set in the given style, in the caller's units. */
+export type Measure = (text: string, bold: boolean, italic: boolean) => number;
+
 /**
- * Render blocks to a PDF. Block-level styling only: headings get larger bold
- * type; a block whose entire text shares bold/italic is rendered in that style;
- * lists get bullet/number prefixes and an indent. Inline mid-paragraph mark
- * changes are NOT yet honored (the text is preserved at normal weight) — see
- * plans/004-findings.md.
+ * Break styled segments into lines no wider than `maxWidth`, preserving each
+ * run's bold/italic and recording where along the line it starts, so a
+ * paragraph can change style mid-line. Pure: the font metrics come from
+ * `measure`, which the renderer backs with jsPDF's getTextWidth.
+ *
+ * Wrapping happens at whitespace; a "\n" segment forces a break; whitespace
+ * that would start a wrapped line is dropped; a single word wider than the
+ * line is split across lines by character rather than overflowing.
+ * Always yields at least one (possibly empty) line so blank paragraphs still
+ * take vertical space.
+ */
+export function layoutLines(
+	segments: TextSegment[],
+	maxWidth: number,
+	measure: Measure,
+): LineRun[][] {
+	const lines: LineRun[][] = [];
+	let line: LineRun[] = [];
+	let x = 0;
+
+	const newline = () => {
+		// Trailing whitespace at a wrap point renders as nothing; drop it.
+		const last = line[line.length - 1];
+		if (last) {
+			last.text = last.text.replace(/\s+$/, "");
+			if (last.text === "") line.pop();
+		}
+		lines.push(line);
+		line = [];
+		x = 0;
+	};
+
+	const place = (text: string, width: number, bold: boolean, italic: boolean) => {
+		const last = line[line.length - 1];
+		if (last && last.bold === bold && last.italic === italic) {
+			last.text += text;
+		} else {
+			line.push({ text, bold, italic, x });
+		}
+		x += width;
+	};
+
+	for (const seg of segments) {
+		const { bold, italic } = seg;
+		for (const piece of seg.text.split(/(\n)/)) {
+			if (piece === "") continue;
+			if (piece === "\n") {
+				newline();
+				continue;
+			}
+			for (const token of piece.split(/(\s+)/)) {
+				if (token === "") continue;
+				const isSpace = /^\s+$/.test(token);
+				const width = measure(token, bold, italic);
+
+				if (x > 0 && x + width > maxWidth) {
+					newline();
+					if (isSpace) continue;
+				}
+
+				if (width > maxWidth && !isSpace) {
+					// Overlong word: split by character.
+					for (const ch of token) {
+						const w = measure(ch, bold, italic);
+						if (x > 0 && x + w > maxWidth) newline();
+						place(ch, w, bold, italic);
+					}
+					continue;
+				}
+
+				place(token, width, bold, italic);
+			}
+		}
+	}
+	lines.push(line);
+	return lines;
+}
+
+type FontStyle = "normal" | "bold" | "italic" | "bolditalic";
+
+function fontStyle(bold: boolean, italic: boolean): FontStyle {
+	if (bold && italic) return "bolditalic";
+	if (bold) return "bold";
+	if (italic) return "italic";
+	return "normal";
+}
+
+/**
+ * Render blocks to a PDF. Headings get larger bold type; lists get a
+ * bullet/number prefix and an indent; bold and italic runs are honored
+ * wherever they occur, including mid-line, via layoutLines.
  */
 export async function renderBlocksToPdf(blocks: PdfBlock[]): Promise<Uint8Array> {
 	const { default: jsPDF } = await import("jspdf");
@@ -138,46 +235,49 @@ export async function renderBlocksToPdf(blocks: PdfBlock[]): Promise<Uint8Array>
 	const headingSize: Record<number, number> = { 1: 20, 2: 16, 3: 13 };
 
 	for (const block of blocks) {
-		const text = block.segments.map((s) => s.text).join("");
-
 		let fontSize = 11;
-		let fontStyle: "normal" | "bold" | "italic" | "bolditalic" = "normal";
 		let indent = 0;
-		let prefix = "";
 		let spaceAfter = 2;
+		let segments = block.segments;
 
 		if (block.kind === "heading") {
 			fontSize = headingSize[block.level] ?? 12;
-			fontStyle = "bold";
 			spaceAfter = 3;
+			segments = segments.map((s) => ({ ...s, bold: true }));
 		} else if (block.kind === "listItem") {
 			indent = 6;
-			prefix = block.ordered ? `${block.index}. ` : "• ";
+			const first = segments[0];
+			segments = [
+				{
+					text: block.ordered ? `${block.index}. ` : "• ",
+					bold: first?.bold ?? false,
+					italic: first?.italic ?? false,
+				},
+				...segments,
+			];
 		}
 
-		// Whole-block bold/italic (only when every non-blank segment shares it).
-		if (block.kind !== "heading") {
-			const nonEmpty = block.segments.filter((s) => s.text.trim() !== "");
-			const allBold = nonEmpty.length > 0 && nonEmpty.every((s) => s.bold);
-			const allItalic =
-				nonEmpty.length > 0 && nonEmpty.every((s) => s.italic);
-			if (allBold && allItalic) fontStyle = "bolditalic";
-			else if (allBold) fontStyle = "bold";
-			else if (allItalic) fontStyle = "italic";
-		}
-
-		pdf.setFont("helvetica", fontStyle);
-		pdf.setFontSize(fontSize);
+		const setFont = (bold: boolean, italic: boolean) => {
+			pdf.setFont("helvetica", fontStyle(bold, italic));
+			pdf.setFontSize(fontSize);
+		};
+		const measure: Measure = (text, bold, italic) => {
+			setFont(bold, italic);
+			return pdf.getTextWidth(text);
+		};
 
 		const lineHeight = fontSize * 0.5; // mm, approximate
-		const lines: string[] = pdf.splitTextToSize(prefix + text, maxWidth - indent);
+		const lines = layoutLines(segments, maxWidth - indent, measure);
 
 		for (const line of lines) {
 			if (y + lineHeight > pageBottom) {
 				pdf.addPage();
 				y = margin;
 			}
-			pdf.text(line, margin + indent, y);
+			for (const run of line) {
+				setFont(run.bold, run.italic);
+				pdf.text(run.text, margin + indent + run.x, y);
+			}
 			y += lineHeight;
 		}
 		y += spaceAfter;

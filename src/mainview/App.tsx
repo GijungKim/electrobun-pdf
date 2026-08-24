@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, useEditorState, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
@@ -17,6 +17,7 @@ import PdfToolbar from "./components/PdfToolbar";
 import StatusBar from "./components/StatusBar";
 import WelcomeScreen from "./components/WelcomeScreen";
 import PdfAnnotationLayer, {
+	type AnnotationsChange,
 	type Tool,
 } from "./components/PdfAnnotationLayer";
 import {
@@ -30,13 +31,24 @@ import {
 	onFileSaved,
 	onStatusUpdate,
 } from "./rpc";
-import {
-	exportToPdf,
-	exportEditorToPdf,
-	uint8ToBase64,
-	type ExportAnnotation,
-} from "./utils/fileHandlers";
+import { exportToPdf, exportEditorToPdf, uint8ToBase64 } from "./utils/fileHandlers";
 import type { ProseNode } from "./utils/docExport";
+import {
+	EMPTY_DOC,
+	changedPage,
+	pageAnnotations,
+	toExportAnnotations,
+	withPage,
+	type DocAnnotations,
+} from "./utils/annotations";
+import {
+	commit,
+	createHistory,
+	redo,
+	replace,
+	undo,
+	type History,
+} from "./utils/history";
 
 export default function App() {
 	const [fileName, setFileName] = useState<string | null>(null);
@@ -53,8 +65,23 @@ export default function App() {
 	const [pdfSessionId, setPdfSessionId] = useState(0);
 	const [isDraggingFile, setIsDraggingFile] = useState(false);
 	const dragCounter = useRef(0);
-	const pageAnnotationsRef = useRef<Map<number, ExportAnnotation[]>>(new Map());
 	const editorContentRef = useRef<HTMLDivElement>(null);
+
+	// Undo/redo history over the whole annotation document (all pages). Every
+	// update goes through updateHistory so the ref is always current inside
+	// event handlers, while the state drives rendering.
+	const [history, setHistory] = useState<History<DocAnnotations>>(() =>
+		createHistory(EMPTY_DOC),
+	);
+	const historyRef = useRef(history);
+	const updateHistory = useCallback(
+		(fn: (h: History<DocAnnotations>) => History<DocAnnotations>) => {
+			const next = fn(historyRef.current);
+			historyRef.current = next;
+			setHistory(next);
+		},
+		[],
+	);
 
 	const editor = useEditor({
 		extensions: [
@@ -78,19 +105,49 @@ export default function App() {
 		},
 	});
 
-	const wordCount =
-		editor?.getText().split(/\s+/).filter(Boolean).length ?? 0;
+	// useEditor doesn't re-render on transactions, so derive the count via
+	// useEditorState — it only re-renders when the number itself changes.
+	const wordCount = useEditorState({
+		editor,
+		selector: ({ editor: e }) =>
+			e ? e.getText().split(/\s+/).filter(Boolean).length : 0,
+	});
 
 	const handleOpen = useCallback(() => {
 		setStatus("Opening file...");
 		triggerOpen();
 	}, []);
 
-	const handleAnnotationsChange = useCallback(
-		(pageNum: number, annotations: ExportAnnotation[]) => {
-			pageAnnotationsRef.current.set(pageNum, annotations);
+	const handleAnnotationsChange = useCallback<AnnotationsChange>(
+		(pageNum, next, before) => {
+			updateHistory((h) => {
+				const nextDoc = withPage(h.present, pageNum, next);
+				return before === undefined
+					? replace(h, nextDoc)
+					: commit(h, withPage(h.present, pageNum, before), nextDoc);
+			});
 		},
-		[],
+		[updateHistory],
+	);
+
+	// Make sure the page an undo/redo just touched is on screen.
+	const revealPage = useCallback((pageNum: number) => {
+		setActivePageNum(pageNum);
+		editorContentRef.current
+			?.querySelector(`[data-pdf-page="${pageNum}"]`)
+			?.scrollIntoView({ block: "nearest" });
+	}, []);
+
+	const handleUndoRedo = useCallback(
+		(direction: "undo" | "redo") => {
+			const prev = historyRef.current;
+			const next = direction === "undo" ? undo(prev) : redo(prev);
+			if (next === prev) return;
+			updateHistory(() => next);
+			const page = changedPage(prev.present, next.present);
+			if (page !== null) revealPage(page);
+		},
+		[updateHistory, revealPage],
 	);
 
 	const handleExportPdf = useCallback(async () => {
@@ -104,11 +161,12 @@ export default function App() {
 
 			if (isPdf) {
 				// Build export pages from images + annotations
+				const doc = historyRef.current.present;
 				const exportPages = pdfPages
 					.filter(Boolean)
 					.map((imageDataUrl, i) => ({
 						imageDataUrl,
-						annotations: pageAnnotationsRef.current.get(i + 1) || [],
+						annotations: toExportAnnotations(pageAnnotations(doc, i + 1)),
 					}));
 				pdfBytes = await exportToPdf(exportPages);
 			} else {
@@ -229,13 +287,27 @@ export default function App() {
 			)
 				return;
 
+			// Cmd+Z / Cmd+Shift+Z — annotation undo/redo across all pages
+			if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+				e.preventDefault();
+				handleUndoRedo(e.shiftKey ? "redo" : "undo");
+				return;
+			}
+
 			if (e.key === "v" || e.key === "V") setActiveTool("select");
 			if (e.key === "t" || e.key === "T") setActiveTool("text");
 			if (e.key === "c" || e.key === "C") setActiveTool("circle");
 		};
 		window.addEventListener("keydown", handler);
 		return () => window.removeEventListener("keydown", handler);
-	}, [isPdf]);
+	}, [isPdf, handleUndoRedo]);
+
+	// The RPC callbacks are registered once; the export handler changes identity
+	// as pages arrive, so they reach it through a ref instead of re-registering.
+	const handleExportPdfRef = useRef(handleExportPdf);
+	useEffect(() => {
+		handleExportPdfRef.current = handleExportPdf;
+	}, [handleExportPdf]);
 
 	// Listen for messages from bun process
 	useEffect(() => {
@@ -245,7 +317,7 @@ export default function App() {
 			setIsPdf(false);
 			setActiveTool("select");
 			setTotalPages(0);
-			pageAnnotationsRef.current.clear();
+			updateHistory(() => createHistory(EMPTY_DOC));
 			setFileName(data.fileName);
 			editor?.commands.setContent(data.html);
 			setShowEditor(true);
@@ -261,7 +333,7 @@ export default function App() {
 					setActiveTool("select");
 					setActivePageNum(1);
 					setPdfSessionId((id) => id + 1);
-					pageAnnotationsRef.current.clear();
+					updateHistory(() => createHistory(EMPTY_DOC));
 					setShowEditor(true);
 					return [data.imageDataUrl];
 				}
@@ -291,9 +363,9 @@ export default function App() {
 
 		onMenuAction((action) => {
 			if (action === "open") handleOpen();
-			if (action === "exportPdf") handleExportPdf();
+			if (action === "exportPdf") handleExportPdfRef.current();
 		});
-	}, [editor, handleOpen, handleExportPdf]);
+	}, [editor, handleOpen, updateHistory]);
 
 	const dropOverlay = isDraggingFile ? (
 		<div className="absolute inset-0 z-50 bg-surface-950/80 backdrop-blur-sm flex items-center justify-center pointer-events-none">
@@ -367,8 +439,8 @@ export default function App() {
 										activeTool={activeTool}
 										strokeWidth={strokeWidth}
 										color={annotationColor}
-										isActivePage={activePageNum === i + 1}
-										onAnnotationsChange={handleAnnotationsChange}
+										annotations={pageAnnotations(history.present, i + 1)}
+										onChange={handleAnnotationsChange}
 										onPageFocus={setActivePageNum}
 									/>
 								</div>
