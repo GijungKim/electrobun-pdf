@@ -5,8 +5,10 @@ import * as mupdf from "mupdf";
  * Parse a DOCX file buffer into HTML
  */
 export async function parseDocx(buffer: ArrayBuffer): Promise<string> {
+	// Mammoth's Node build only reads `buffer` (`arrayBuffer` is the browser
+	// build's option). Buffer.from(ArrayBuffer) is a view, not a copy.
 	const result = await mammoth.convertToHtml(
-		{ arrayBuffer: buffer },
+		{ buffer: Buffer.from(buffer) },
 		{
 			styleMap: [
 				"p[style-name='Heading 1'] => h1:fresh",
