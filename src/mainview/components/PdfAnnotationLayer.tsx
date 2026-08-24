@@ -1,32 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { ExportAnnotation } from "../utils/fileHandlers";
+import { memo, useCallback, useRef, useState } from "react";
+import type { PageAnnotations } from "../utils/annotations";
 import { circleFromDrag, clampPercent } from "../utils/geometry";
 
 export type Tool = "select" | "text" | "circle";
 
-interface TextAnnotation {
-	id: string;
-	x: number;
-	y: number;
-	text: string;
-	fontSize: number;
-	color: string;
-}
-
-interface CircleAnnotation {
-	id: string;
-	cx: number;
-	cy: number;
-	rx: number;
-	ry: number;
-	color: string;
-	strokeWidth: number;
-}
-
-type AnnotationState = {
-	texts: TextAnnotation[];
-	circles: CircleAnnotation[];
-};
+/**
+ * Report a change to this page's annotations. Pass `before` to make the change
+ * an undo step (the state to restore); omit it for transient updates that
+ * belong to an already-recorded step (drag moves, keystrokes).
+ */
+export type AnnotationsChange = (
+	pageNum: number,
+	next: PageAnnotations,
+	before?: PageAnnotations,
+) => void;
 
 interface PdfAnnotationLayerProps {
 	pageNum: number;
@@ -34,32 +21,37 @@ interface PdfAnnotationLayerProps {
 	activeTool: Tool;
 	strokeWidth: number;
 	color: string;
-	isActivePage: boolean;
-	onAnnotationsChange?: (
-		pageNum: number,
-		annotations: ExportAnnotation[],
-	) => void;
+	annotations: PageAnnotations;
+	onChange: AnnotationsChange;
 	onPageFocus?: (pageNum: number) => void;
 }
 
-export default function PdfAnnotationLayer({
+function PdfAnnotationLayer({
 	pageNum,
 	imageDataUrl,
 	activeTool,
 	strokeWidth,
 	color,
-	isActivePage,
-	onAnnotationsChange,
+	annotations,
+	onChange,
 	onPageFocus,
 }: PdfAnnotationLayerProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
-	const [texts, setTexts] = useState<TextAnnotation[]>([]);
-	const [circles, setCircles] = useState<CircleAnnotation[]>([]);
+	const { texts, circles } = annotations;
 	const [editingTextId, setEditingTextId] = useState<string | null>(null);
 	const [hoveredCircleId, setHoveredCircleId] = useState<string | null>(null);
 	const [draggingId, setDraggingId] = useState<string | null>(null);
 	const draggingTypeRef = useRef<"text" | "circle" | null>(null);
 	const dragOffsetRef = useRef({ x: 0, y: 0 });
+	// The page state as it was when a drag started; recorded as the undo point on
+	// the first move, then cleared so later moves are transient.
+	const dragBeforeRef = useRef<PageAnnotations | null>(null);
+	// A freshly placed, still-empty text box: its undo point (the page without
+	// it) is recorded on the first keystroke, so an abandoned empty box costs
+	// no undo step.
+	const pendingTextRef = useRef<{ id: string; before: PageAnnotations } | null>(
+		null,
+	);
 	const [drawingCircle, setDrawingCircle] = useState<{
 		startX: number;
 		startY: number;
@@ -67,93 +59,21 @@ export default function PdfAnnotationLayer({
 		currentY: number;
 	} | null>(null);
 
-	// Single-level undo/redo — kept in refs so taking a snapshot
-	// doesn't re-render the page
-	const undoStateRef = useRef<AnnotationState | null>(null);
-	const redoStateRef = useRef<AnnotationState | null>(null);
-
-	const saveUndoState = useCallback(() => {
-		undoStateRef.current = { texts: [...texts], circles: [...circles] };
-		redoStateRef.current = null;
-	}, [texts, circles]);
-
-	const undo = useCallback(() => {
-		const prev = undoStateRef.current;
-		if (!prev) return;
-		redoStateRef.current = { texts: [...texts], circles: [...circles] };
-		setTexts(prev.texts);
-		setCircles(prev.circles);
-		undoStateRef.current = null;
-	}, [texts, circles]);
-
-	const redo = useCallback(() => {
-		const next = redoStateRef.current;
-		if (!next) return;
-		undoStateRef.current = { texts: [...texts], circles: [...circles] };
-		setTexts(next.texts);
-		setCircles(next.circles);
-		redoStateRef.current = null;
-	}, [texts, circles]);
-
-	// Cmd+Z / Cmd+Shift+Z — only active page handles undo/redo
-	useEffect(() => {
-		if (!isActivePage) return;
-		const handler = (e: KeyboardEvent) => {
-			if (
-				e.target instanceof HTMLTextAreaElement ||
-				e.target instanceof HTMLInputElement
-			)
-				return;
-
-			if ((e.metaKey || e.ctrlKey) && e.key === "z") {
-				e.preventDefault();
-				if (e.shiftKey) {
-					redo();
-				} else {
-					undo();
-				}
-			}
-		};
-		window.addEventListener("keydown", handler);
-		return () => window.removeEventListener("keydown", handler);
-	}, [undo, redo, isActivePage]);
-
 	// End text editing, discarding the annotation if it was left empty.
-	// Functional updates guard against the blur that fires when focus
-	// moves to a newly placed text box.
-	const finishEditingText = useCallback((id: string) => {
-		setTexts((prev) =>
-			prev.filter((t) => t.text.trim() !== "" || t.id !== id),
-		);
-		setEditingTextId((prev) => (prev === id ? null : prev));
-	}, []);
-
-	// Report annotations to parent for export
-	useEffect(() => {
-		if (!onAnnotationsChange) return;
-		const annotations: ExportAnnotation[] = [
-			...texts
-				.filter((t) => t.text.trim())
-				.map((t) => ({
-					type: "text" as const,
-					x: t.x,
-					y: t.y,
-					text: t.text,
-					fontSize: t.fontSize,
-					color: t.color,
-				})),
-			...circles.map((c) => ({
-				type: "circle" as const,
-				cx: c.cx,
-				cy: c.cy,
-				rx: c.rx,
-				ry: c.ry,
-				color: c.color,
-				strokeWidth: c.strokeWidth,
-			})),
-		];
-		onAnnotationsChange(pageNum, annotations);
-	}, [texts, circles, pageNum, onAnnotationsChange]);
+	const finishEditingText = useCallback(
+		(id: string) => {
+			const text = texts.find((t) => t.id === id);
+			if (text && text.text.trim() === "") {
+				onChange(pageNum, {
+					texts: texts.filter((t) => t.id !== id),
+					circles,
+				});
+			}
+			if (pendingTextRef.current?.id === id) pendingTextRef.current = null;
+			setEditingTextId((prev) => (prev === id ? null : prev));
+		},
+		[texts, circles, onChange, pageNum],
+	);
 
 	const getRelativePos = useCallback((e: React.MouseEvent) => {
 		const rect = containerRef.current?.getBoundingClientRect();
@@ -168,23 +88,18 @@ export default function PdfAnnotationLayer({
 		(e: React.MouseEvent) => {
 			onPageFocus?.(pageNum);
 			if (activeTool === "text") {
-				saveUndoState();
 				const pos = getRelativePos(e);
 				const id = `text-${Date.now()}`;
-				setTexts((prev) => [
-					...prev,
-					{
-						id,
-						x: pos.x,
-						y: pos.y,
-						text: "",
-						fontSize: 16,
-						color,
-					},
-				]);
+				pendingTextRef.current = { id, before: annotations };
+				onChange(pageNum, {
+					texts: [
+						...texts,
+						{ id, x: pos.x, y: pos.y, text: "", fontSize: 16, color },
+					],
+					circles,
+				});
 				setEditingTextId(id);
 			} else if (activeTool === "circle") {
-				saveUndoState();
 				const pos = getRelativePos(e);
 				setDrawingCircle({
 					startX: pos.x,
@@ -196,7 +111,17 @@ export default function PdfAnnotationLayer({
 				setEditingTextId(null);
 			}
 		},
-		[activeTool, getRelativePos, color, saveUndoState, onPageFocus, pageNum],
+		[
+			activeTool,
+			getRelativePos,
+			color,
+			onPageFocus,
+			pageNum,
+			annotations,
+			texts,
+			circles,
+			onChange,
+		],
 	);
 
 	const handleMouseMove = useCallback(
@@ -204,39 +129,35 @@ export default function PdfAnnotationLayer({
 			if (drawingCircle) {
 				const pos = getRelativePos(e);
 				setDrawingCircle((prev) =>
-					prev
-						? { ...prev, currentX: pos.x, currentY: pos.y }
-						: null,
+					prev ? { ...prev, currentX: pos.x, currentY: pos.y } : null,
 				);
-			} else if (draggingId && draggingTypeRef.current === "text") {
-				const pos = getRelativePos(e);
-				setTexts((prev) =>
-					prev.map((t) =>
-						t.id === draggingId
-							? {
-									...t,
-									x: clampPercent(pos.x - dragOffsetRef.current.x),
-									y: clampPercent(pos.y - dragOffsetRef.current.y),
-								}
-							: t,
-					),
-				);
-			} else if (draggingId && draggingTypeRef.current === "circle") {
-				const pos = getRelativePos(e);
-				setCircles((prev) =>
-					prev.map((c) =>
-						c.id === draggingId
-							? {
-									...c,
-									cx: clampPercent(pos.x - dragOffsetRef.current.x),
-									cy: clampPercent(pos.y - dragOffsetRef.current.y),
-								}
-							: c,
-					),
-				);
+				return;
 			}
+			if (!draggingId) return;
+
+			const pos = getRelativePos(e);
+			const x = clampPercent(pos.x - dragOffsetRef.current.x);
+			const y = clampPercent(pos.y - dragOffsetRef.current.y);
+			const next: PageAnnotations =
+				draggingTypeRef.current === "text"
+					? {
+							texts: texts.map((t) =>
+								t.id === draggingId ? { ...t, x, y } : t,
+							),
+							circles,
+						}
+					: {
+							texts,
+							circles: circles.map((c) =>
+								c.id === draggingId ? { ...c, cx: x, cy: y } : c,
+							),
+						};
+			// First move records the undo point; subsequent moves are transient.
+			const before = dragBeforeRef.current ?? undefined;
+			dragBeforeRef.current = null;
+			onChange(pageNum, next, before);
 		},
-		[drawingCircle, draggingId, getRelativePos],
+		[drawingCircle, draggingId, getRelativePos, texts, circles, onChange, pageNum],
 	);
 
 	const handleMouseUp = useCallback(() => {
@@ -249,18 +170,17 @@ export default function PdfAnnotationLayer({
 			);
 
 			if (rx > 0.5 && ry > 0.5) {
-				setCircles((prev) => [
-					...prev,
+				onChange(
+					pageNum,
 					{
-						id: `circle-${Date.now()}`,
-						cx,
-						cy,
-						rx,
-						ry,
-						color,
-						strokeWidth,
+						texts,
+						circles: [
+							...circles,
+							{ id: `circle-${Date.now()}`, cx, cy, rx, ry, color, strokeWidth },
+						],
 					},
-				]);
+					annotations,
+				);
 			}
 			setDrawingCircle(null);
 		}
@@ -268,24 +188,35 @@ export default function PdfAnnotationLayer({
 		if (draggingId) {
 			setDraggingId(null);
 			draggingTypeRef.current = null;
+			dragBeforeRef.current = null;
 		}
-	}, [drawingCircle, draggingId, strokeWidth, color]);
+	}, [
+		drawingCircle,
+		draggingId,
+		strokeWidth,
+		color,
+		annotations,
+		texts,
+		circles,
+		onChange,
+		pageNum,
+	]);
 
 	const startDraggingText = useCallback(
 		(e: React.MouseEvent, textId: string) => {
 			e.stopPropagation();
 			e.preventDefault();
 			onPageFocus?.(pageNum);
-			saveUndoState();
 			const pos = getRelativePos(e);
 			const text = texts.find((t) => t.id === textId);
 			if (!text) return;
 			dragOffsetRef.current = { x: pos.x - text.x, y: pos.y - text.y };
+			dragBeforeRef.current = annotations;
 			setDraggingId(textId);
 			draggingTypeRef.current = "text";
 			setEditingTextId(null);
 		},
-		[getRelativePos, texts, saveUndoState, onPageFocus, pageNum],
+		[getRelativePos, texts, annotations, onPageFocus, pageNum],
 	);
 
 	const startDraggingCircle = useCallback(
@@ -293,32 +224,48 @@ export default function PdfAnnotationLayer({
 			e.stopPropagation();
 			e.preventDefault();
 			onPageFocus?.(pageNum);
-			saveUndoState();
 			const pos = getRelativePos(e);
 			const circle = circles.find((c) => c.id === circleId);
 			if (!circle) return;
 			dragOffsetRef.current = { x: pos.x - circle.cx, y: pos.y - circle.cy };
+			dragBeforeRef.current = annotations;
 			setDraggingId(circleId);
 			draggingTypeRef.current = "circle";
 		},
-		[getRelativePos, circles, saveUndoState, onPageFocus, pageNum],
+		[getRelativePos, circles, annotations, onPageFocus, pageNum],
 	);
 
-	const updateTextContent = useCallback((id: string, text: string) => {
-		setTexts((prev) =>
-			prev.map((t) => (t.id === id ? { ...t, text } : t)),
-		);
-	}, []);
+	const updateTextContent = useCallback(
+		(id: string, text: string) => {
+			const next: PageAnnotations = {
+				texts: texts.map((t) => (t.id === id ? { ...t, text } : t)),
+				circles,
+			};
+			const pending = pendingTextRef.current;
+			if (pending?.id === id && text.trim() !== "") {
+				pendingTextRef.current = null;
+				onChange(pageNum, next, pending.before);
+			} else {
+				onChange(pageNum, next);
+			}
+		},
+		[texts, circles, onChange, pageNum],
+	);
 
 	const deleteAnnotation = useCallback(
 		(id: string) => {
 			onPageFocus?.(pageNum);
-			saveUndoState();
-			setTexts((prev) => prev.filter((t) => t.id !== id));
-			setCircles((prev) => prev.filter((c) => c.id !== id));
+			onChange(
+				pageNum,
+				{
+					texts: texts.filter((t) => t.id !== id),
+					circles: circles.filter((c) => c.id !== id),
+				},
+				annotations,
+			);
 			if (editingTextId === id) setEditingTextId(null);
 		},
-		[editingTextId, saveUndoState, onPageFocus, pageNum],
+		[editingTextId, onPageFocus, pageNum, annotations, texts, circles, onChange],
 	);
 
 	const previewCircle = drawingCircle
@@ -515,3 +462,7 @@ export default function PdfAnnotationLayer({
 		</div>
 	);
 }
+
+// Memoized: the parent re-renders on every annotation change (including each
+// drag move), but only the edited page's `annotations` identity changes.
+export default memo(PdfAnnotationLayer);

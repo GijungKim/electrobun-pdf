@@ -11,7 +11,7 @@ Local-first PDF & DOCX editor built with [Electrobun](https://github.com/blackbo
 - **Annotate PDFs** — add text, draw circles/ovals, choose colors, adjust stroke width
 - **Drag & drop annotations** — reposition text and shapes after placing them
 - **Delete annotations** — hover any annotation in select mode and click the red **×**
-- **Undo/Redo** — Cmd+Z / Cmd+Shift+Z
+- **Undo/Redo** — Cmd+Z / Cmd+Shift+Z, multi-level and across all pages (the affected page scrolls into view)
 - **Page indicator** — the status bar tracks the current page as you scroll
 - **Export to PDF** — saves annotated documents with a native folder picker
 - **DOCX editing** — full rich text editor powered by [TipTap](https://tiptap.dev/)
@@ -90,6 +90,10 @@ src/
       StatusBar.tsx
     utils/
       fileHandlers.ts   # PDF export via jsPDF
+      docExport.ts      # DOCX (ProseMirror JSON) → styled PDF blocks & line layout
+      annotations.ts    # Per-page annotation document (immutable snapshots)
+      history.ts        # Generic undo/redo history over those snapshots
+      geometry.ts       # Coordinate helpers
   shared/
     types.ts            # Typed RPC schema
 ```
