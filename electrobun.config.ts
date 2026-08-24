@@ -7,8 +7,8 @@ export default {
 		version: "1.0.0",
 	},
 	build: {
-		mainProcess: "bun",
-		bun: {
+		mainProcess: "cottontail",
+		cottontail: {
 			entrypoint: "src/bun/index.ts",
 		},
 		copy: {

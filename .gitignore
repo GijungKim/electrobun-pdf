@@ -5,3 +5,4 @@ build/
 artifacts/
 *.DS_Store
 .env
+.cottontail-tmp/
