@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useEditor, useEditorState, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import ImageExt from "@tiptap/extension-image";
 import { Table as TableExt } from "@tiptap/extension-table";
@@ -85,8 +84,7 @@ export default function App() {
 
 	const editor = useEditor({
 		extensions: [
-			StarterKit,
-			Underline,
+			StarterKit, // includes underline in v3
 			TextAlign.configure({ types: ["heading", "paragraph"] }),
 			ImageExt.configure({ inline: false, allowBase64: true }),
 			TableExt.configure({ resizable: true }),
@@ -107,10 +105,19 @@ export default function App() {
 
 	// useEditor doesn't re-render on transactions, so derive the count via
 	// useEditorState — it only re-renders when the number itself changes.
+	// The selector runs before EditorContent has mounted a view (welcome
+	// screen), when `editor.state` is still undefined — so read it guardedly
+	// rather than via getText(), which assumes an initialized editor.
 	const wordCount = useEditorState({
 		editor,
-		selector: ({ editor: e }) =>
-			e ? e.getText().split(/\s+/).filter(Boolean).length : 0,
+		selector: ({ editor: e }) => {
+			const doc = e?.state?.doc;
+			if (!doc) return 0;
+			return doc
+				.textBetween(0, doc.content.size, " ", " ")
+				.split(/\s+/)
+				.filter(Boolean).length;
+		},
 	});
 
 	const handleOpen = useCallback(() => {
