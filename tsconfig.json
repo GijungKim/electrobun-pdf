@@ -1,8 +1,10 @@
 {
+	"extends": "./.hutch/devkit/tsconfig.json",
 	"compilerOptions": {
+		"baseUrl": null,
 		"target": "ES2020",
 		"useDefineForClassFields": true,
-		"lib": ["ES2020", "DOM", "DOM.Iterable"],
+		"lib": ["ES2021", "DOM", "DOM.Iterable"],
 		"module": "ESNext",
 		"skipLibCheck": true,
 		"moduleResolution": "bundler",
@@ -17,6 +19,6 @@
 		"noUnusedParameters": true,
 		"noFallthroughCasesInSwitch": true
 	},
-	"include": ["src"],
+	"include": ["src", "electrobun.config.ts", "hutch.config.ts", "vite.config.ts"],
 	"exclude": ["node_modules", "dist", "build", "../../package/dist"]
 }
