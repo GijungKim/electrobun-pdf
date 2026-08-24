@@ -42,7 +42,7 @@ Empty text boxes are discarded automatically when you click away, so a stray cli
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) v1.4+
+- [Bun](https://bun.sh/) v1.4+ — for installing dependencies and running scripts; the packaged app runs its main process on Cottontail and does not ship Bun
 - macOS 14+, Windows 11+, or Ubuntu 22.04+
 
 ### Install & Run
@@ -76,7 +76,7 @@ For a stable-channel package, run `bun run build:stable`. Packaging writes ignor
 
 ```
 src/
-  bun/                  # Main process (Bun runtime)
+  bun/                  # Main process (runs on Cottontail, Electrobun's JSC runtime)
     index.ts            # Window, menus, RPC handlers, file I/O
     fileParser.ts       # PDF rendering (MuPDF) & DOCX parsing (Mammoth)
   mainview/             # Webview (React + Tailwind)
@@ -102,9 +102,9 @@ src/
 
 | Step | What happens |
 |------|-------------|
-| **Open PDF** | Bun reads the file, MuPDF (WASM) renders each page as a PNG, sent to webview page-by-page via fire-and-forget RPC |
-| **Open DOCX** | Bun reads the file, Mammoth converts to HTML, sent to webview and loaded into TipTap editor |
-| **Drag & drop** | The webview reads the dropped file's bytes and sends them to Bun over RPC (base64), then the same parse/render path runs |
+| **Open PDF** | The main process reads the file, MuPDF (WASM) renders each page as a PNG, sent to webview page-by-page via fire-and-forget RPC |
+| **Open DOCX** | The main process reads the file, Mammoth converts to HTML, sent to webview and loaded into TipTap editor |
+| **Drag & drop** | The webview reads the dropped file's bytes and sends them to the main process over RPC (base64), then the same parse/render path runs |
 | **Annotate** | React components overlay SVG circles and positioned text inputs on top of page images |
 | **Export** | jsPDF composites page images + annotation coordinates directly onto PDF pages (no html2canvas) |
 
@@ -112,7 +112,7 @@ src/
 
 | Package | Purpose |
 |---------|---------|
-| [Electrobun](https://github.com/blackboardsh/electrobun) | Desktop shell (native webview + Bun) |
+| [Electrobun](https://github.com/blackboardsh/electrobun) | Desktop shell (native webview + Cottontail main process) |
 | [MuPDF](https://www.npmjs.com/package/mupdf) | PDF page rendering (WASM) |
 | [Mammoth](https://www.npmjs.com/package/mammoth) | DOCX to HTML conversion |
 | [TipTap](https://tiptap.dev/) | Rich text editor (ProseMirror) |
