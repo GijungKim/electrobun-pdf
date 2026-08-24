@@ -2,5 +2,6 @@ node_modules/
 .hutch/
 dist/
 build/
+artifacts/
 *.DS_Store
 .env
