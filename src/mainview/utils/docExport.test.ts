@@ -1,5 +1,5 @@
 import { test, expect, describe } from "bun:test";
-import { docToBlocks, type ProseNode } from "./docExport";
+import { docToBlocks, layoutLines, type ProseNode, type TextSegment } from "./docExport";
 
 describe("docToBlocks", () => {
 	test("maps a heading with its level", () => {
@@ -92,5 +92,68 @@ describe("docToBlocks", () => {
 
 	test("empty doc yields no blocks", () => {
 		expect(docToBlocks({ type: "doc", content: [] })).toEqual([]);
+	});
+});
+
+// Monospace measurer: every character is 1 unit wide, whatever the style.
+const mono = (text: string) => text.length;
+// Style-sensitive measurer: bold glyphs are twice as wide.
+const boldWide = (text: string, bold: boolean) => text.length * (bold ? 2 : 1);
+
+const seg = (text: string, bold = false, italic = false): TextSegment => ({ text, bold, italic });
+
+describe("layoutLines", () => {
+	test("keeps a short paragraph on one line, merging same-style tokens into one run", () => {
+		expect(layoutLines([seg("hello world")], 80, mono)).toEqual([
+			[{ text: "hello world", bold: false, italic: false, x: 0 }],
+		]);
+	});
+
+	test("preserves style changes mid-line with the correct x offsets", () => {
+		const lines = layoutLines([seg("a "), seg("bold", true), seg(" c", false, true)], 80, mono);
+		expect(lines).toEqual([
+			[
+				{ text: "a ", bold: false, italic: false, x: 0 },
+				{ text: "bold", bold: true, italic: false, x: 2 },
+				{ text: " c", bold: false, italic: true, x: 6 },
+			],
+		]);
+	});
+
+	test("x offsets come from the measurer, so wider styles push later runs right", () => {
+		const lines = layoutLines([seg("ab", true), seg("cd")], 80, boldWide);
+		expect(lines[0]).toEqual([
+			{ text: "ab", bold: true, italic: false, x: 0 },
+			{ text: "cd", bold: false, italic: false, x: 4 },
+		]);
+	});
+
+	test("wraps at whitespace and drops the space that would start the new line", () => {
+		const lines = layoutLines([seg("one two three")], 7, mono);
+		expect(lines.map((l) => l.map((r) => r.text).join(""))).toEqual(["one two", "three"]);
+		expect(lines[1]?.[0]?.x).toBe(0);
+	});
+
+	test("a style run can straddle a line break", () => {
+		const lines = layoutLines([seg("plain "), seg("bold words here", true)], 11, mono);
+		expect(lines.map((l) => l.map((r) => [r.text, r.bold]))).toEqual([
+			[["plain ", false], ["bold", true]],
+			[["words here", true]],
+		]);
+	});
+
+	test("hard breaks force a new line", () => {
+		const lines = layoutLines([seg("a"), seg("\n"), seg("b")], 80, mono);
+		expect(lines.map((l) => l.map((r) => r.text).join(""))).toEqual(["a", "b"]);
+	});
+
+	test("a word wider than the line is split by character instead of overflowing", () => {
+		const lines = layoutLines([seg("abcdefgh")], 3, mono);
+		expect(lines.map((l) => l.map((r) => r.text).join(""))).toEqual(["abc", "def", "gh"]);
+	});
+
+	test("empty input still yields one empty line", () => {
+		expect(layoutLines([], 80, mono)).toEqual([[]]);
+		expect(layoutLines([seg("")], 80, mono)).toEqual([[]]);
 	});
 });
