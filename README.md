@@ -42,7 +42,7 @@ Empty text boxes are discarded automatically when you click away, so a stray cli
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) v1.x+
+- [Bun](https://bun.sh/) v1.4+
 - macOS 14+, Windows 11+, or Ubuntu 22.04+
 
 ### Install & Run
@@ -54,13 +54,23 @@ bun install
 bun run start
 ```
 
-`bun run start` builds the frontend with Vite and launches the Electrobun app.
+`bun run start` prepares the Electrobun 2 devkit, builds the frontend with Vite, and launches the app. On the first run, Electrobun downloads its paired Hutch toolchain into `~/.hutch` and projects the SDK into the ignored `.hutch/devkit` directory.
 
 For development with hot reload:
 
 ```bash
 bun run dev:hmr
 ```
+
+### Verify & Package
+
+```bash
+bun run typecheck
+bun test
+bun run build:canary
+```
+
+For a stable-channel package, run `bun run build:stable`. Packaging writes ignored local output under `build/` and `artifacts/`; it does not publish a release. The current project configuration produces unsigned development artifacts, so configure application icons, platform signing, and `release.baseUrl` before distributing builds publicly.
 
 ## Architecture
 
