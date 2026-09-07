@@ -118,13 +118,6 @@ src/
 | [TipTap](https://tiptap.dev/) | Rich text editor (ProseMirror) |
 | [jsPDF](https://www.npmjs.com/package/jspdf) | PDF generation for export |
 
-## Repository operations
-
-For automation PRs blocked by self-approval restrictions, see the
-[Brood Factory review-bypass runbook](docs/runbooks/brood-factory-review-bypass.md).
-Bypass policy is managed by repository/organization administrators and the Brood
-Factory publisher, not by the desktop app or its CI workflow.
-
 ## License
 
 [MIT](LICENSE)
