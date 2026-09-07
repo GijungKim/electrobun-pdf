@@ -48,6 +48,67 @@ whether Factory unconditionally waits for `APPROVED`. Changing that policy
 belongs in the Factory repository, with tests; do not blindly retry every merge
 failure with administrator override. This worktree cannot establish that cause.
 
+## Resuming saved completion requests (controller-owner handoff)
+
+This procedure belongs to the authorized Factory controller owner, not an app
+worktree. Do not create replacement Drone jobs or duplicate PRs to retry shipping.
+
+1. **Verify the running controller first.** Record its running build/commit and
+   evidence that it contains the updated review-bypass merge logic. A source-tree
+   change or passing tests alone does not prove that the running process loaded
+   it. If runtime provenance cannot be established, stop before resuming requests;
+   any controller rollout remains an operator-owned action.
+2. **Recover trusted records.** Inspect existing Drone records and their saved
+   completion requests for the authorized GijungKim-owned repositories. Preserve
+   each request's identity, repository, PR number, and exact approved head SHA.
+   Do not infer approval or Factory ownership from a branch name, label, PR
+   author, or this document. Missing records or approval evidence block resumption.
+3. **Reconcile before retrying.** Read each recorded PR's live state. Report an
+   already-merged PR as merged without submitting another merge. A closed,
+   unmerged PR stays blocked rather than being recreated. For open PRs, require
+   the live head to equal the saved approved SHA, successful GitHub checks for
+   that SHA, and confirmed absence of merge conflicts. Missing, pending, failed,
+   cancelled, or otherwise non-successful checks and unknown mergeability block
+   the request; do not treat an empty required-check list as successful CI.
+4. **Limit the exception.** Verify the actual publisher's bypass eligibility and
+   the owner's authorization for that repository. Only missing required reviews
+   qualify for the authorized admin exception; other policy failures stay blocked.
+   An administrator's broad GitHub bypass capability is not permission to skip
+   the checks above or expand repository access.
+5. **Resume, do not replace.** Use Factory's supported saved-request resumption
+   path. Revalidate the gates at execution time and constrain the merge to the
+   exact approved head SHA. A changed head requires fresh approval, not an
+   updated SHA copied into the old request. Stop on non-review failures rather
+   than retrying them with a broader override.
+6. **Confirm and report.** Re-read GitHub after each attempt and retain an audit
+   record of request/Drone identity, repository/PR, approved and observed SHA,
+   check results, controller version, publisher identity, authorization, and
+   outcome. Report each PR as merged or blocked with a specific reason; an
+   accepted resume request is not proof of a merge.
+
+### Follow-up inspection on 2026-09-07 UTC
+
+Read-only inspection from the electrobun-pdf worktree returned no open PRs:
+
+```sh
+gh pr list --repo GijungKim/electrobun-pdf --state open --limit 100 --json number,title,url,headRefName,headRefOid
+gh pr view 34 --repo GijungKim/electrobun-pdf --json number,url,state,headRefOid,reviewDecision,mergeable,mergeStateStatus,statusCheckRollup
+```
+
+PR #34 is now `MERGED`, with reported head
+`911d09023029d902c547e2374ef614e9a2d0dab9` and a completed `SUCCESS` result for
+the CI `typecheck` job. Its review decision still reports `REVIEW_REQUIRED`;
+that field alone does not establish whether a PR remains open. This inspection
+did not merge it or establish which merge path was used.
+
+Factory implementation and saved Drone records are not present in this app
+worktree. Executor tool discovery returned no matching Factory/controller or
+GitHub tools. The running controller version, saved approval SHA, publisher
+authorization, and PR outcomes in other repositories therefore remain unverified.
+No completion requests were resumed. Cross-repository resumption remains blocked
+for this session pending controller-owner verification; this is not a finding
+that every other repository's PR is individually blocked.
+
 ## Proposed global policy (requires separate administrative approval)
 
 1. Use a dedicated Brood Factory GitHub App as the **merging actor**, with only
