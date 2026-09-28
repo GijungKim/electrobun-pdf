@@ -48,18 +48,53 @@ be replaced by files from another revision.
 ## Third-party corresponding source
 
 The project archive covers the application source, but it is not by itself a
-complete source offer for every bundled binary. In particular, the installed
-`mupdf@1.27.0` npm package contains prebuilt JavaScript and WebAssembly under
-AGPL-3.0-or-later, and its installed metadata names an upstream repository but
-does not identify the exact source commit used to produce that WebAssembly.
+complete source offer for every bundled binary. The installed `mupdf@1.27.0`
+npm package contains prebuilt JavaScript and WebAssembly under
+AGPL-3.0-or-later. Its exact source mapping has been verified from the npm
+registry's immutable version metadata, rather than inferred from the version:
 
-Before distributing a binary, the release maintainer must obtain and preserve
-the exact corresponding MuPDF source revision, including the scripts and
-configuration needed to build the shipped `mupdf-wasm.wasm`, and publish or
-offer it alongside the application source as the AGPL requires. Record its
-immutable source reference and checksum. Do not infer that source revision
-from the npm version alone, and do not describe the application source archive
-as complete Corresponding Source until this mapping has been verified.
+- npm metadata: <https://registry.npmjs.org/mupdf/1.27.0>
+- npm tarball: <https://registry.npmjs.org/mupdf/-/mupdf-1.27.0.tgz>
+- npm `gitHead` and exact upstream commit:
+  [`7956afdc373785865f651fcb76f3112ab1208ba0`](https://github.com/ArtifexSoftware/mupdf/commit/7956afdc373785865f651fcb76f3112ab1208ba0)
+- npm tarball SHA-1 (also the registry `dist.shasum`):
+  `9a1c7c01e2f5b95694ee89e09ce57940b01304d2`
+- npm tarball SHA-512 (the decoded `dist.integrity` and `bun.lock` SRI):
+  `bc43d463065ebb93608852f3e1edb447b569da9358eecce2ac612f4f11f2410a50b3a69be037867689f04fab07d49646e448721d2ae88d9ad99f6ff479eeaa65`
+- shipped `dist/mupdf-wasm.wasm` SHA-256:
+  `2763c796603eddcae4202e4c47d1d60868271870530316f180daf4cf86740255`
+
+At that commit, `platform/wasm/package.json` is byte-identical to the package
+metadata inside the npm tarball (SHA-256
+`366f8e6fe476df1e21a21b3915b335335658f793b4b0a7e878bf0335f4f1a77d`).
+Its `prepack` script runs `tools/build.sh` and `tools/compress.sh`; the build
+script pins Emscripten SDK 4.0.8 and produces `mupdf-wasm.wasm` from the MuPDF
+tree. No npm-publish workflow exists in the upstream `.github/workflows`
+directory at this revision; the registry `gitHead`, package match, and
+checked-in `prepack` build path are the provenance evidence.
+
+Do **not** substitute upstream tag `1.27.0`: that tag resolves to parent commit
+`d3b7556577b790e9761868c314ad6fd9b6dd86a9`. The npm `gitHead` is tagged
+`1.27.1` and changes MuPDF's core `version.h` to 1.27.1 while leaving
+`platform/wasm/package.json` at 1.27.0. This mismatch is why the immutable npm
+`gitHead`, not a same-named tag, is used.
+
+The prepared expanded source archive includes the detached `gitHead` checkout,
+all recursively initialized third-party submodules, and the WASM build scripts:
+
+- `artifacts/mupdf-1.27.0-npm-gitHead-7956afdc373785865f651fcb76f3112ab1208ba0-source.tar.gz`
+- SHA-256:
+  `1dbdc0b8ae5940dea6cde3bf4f09e0ca2a071d16df5a42dd7f67b3901c8d88b4`
+- revision inventory and evidence:
+  `artifacts/mupdf-1.27.0-SOURCE-PROVENANCE.txt` (SHA-256
+  `d6461088fc0b6a7bea2a47f64e8c3b8432eb941405eb31815510a4b9c90fb695`)
+
+Publish that source archive and provenance inventory alongside every release
+that ships this npm artifact. The locally preserved registry tarball is
+`artifacts/mupdf-1.27.0-npm-package.tgz` (SHA-256
+`e4b78969319ed148f3110c5cf0158beb851ce72ecf30ef9d0019fe3a41004d78`).
+GitHub-generated source archives do not recursively include submodule content
+and are not a replacement for the expanded archive above.
 
 Apply the same check to any replacement, modified, generated, or
 platform-specific copyleft component found while inspecting the final

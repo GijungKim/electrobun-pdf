@@ -16,7 +16,7 @@ Local-first PDF & DOCX editor built with [Electrobun](https://github.com/blackbo
 - **Page indicator** — the status bar tracks the current page as you scroll
 - **Export to PDF** — saves annotated documents with a native folder picker
 - **DOCX editing** — full rich text editor powered by [TipTap](https://tiptap.dev/)
-- **Lightweight** — ~12MB app bundle using system WebKit (no bundled Chromium)
+- **Lightweight** — uses the system WebKit on macOS instead of bundling Chromium
 
 ### Before & After
 
