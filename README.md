@@ -47,7 +47,8 @@ The replacement prototype currently supports horizontal, born-digital Windows-12
 ### Prerequisites
 
 - [Bun](https://bun.sh/) v1.4+ — for installing dependencies and running scripts; the packaged app runs its main process on Cottontail and does not ship Bun
-- macOS 14+, Windows 11+, or Ubuntu 22.04+
+- The current packaged macOS Apple Silicon build requires **macOS 26.5.2+** (the minimum embedded in the bundled Cottontail executable).
+- Windows 11+ or Ubuntu 22.04+ for the other supported development targets; this release does not provide binaries for those platforms.
 
 ### Install & Run
 

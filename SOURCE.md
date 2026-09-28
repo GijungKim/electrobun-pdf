@@ -39,7 +39,7 @@ shasum -a 256 artifacts/*
 ```
 
 Publish the full commit ID, tag, source archive, checksum, binary artifacts,
-`LICENSE`, `NOTICE`, and `THIRD_PARTY_NOTICES.md` together. Verify that the
+`LICENSE`, `NOTICE`, `THIRD_PARTY_NOTICES.md`, and `RUNTIME_NOTICES.md` together. Verify that the
 archive contains `bun.lock`, `package.json`, `electrobun.config.ts`, the
 `scripts/` directory, and all tracked buildable source. The lockfile and build
 scripts are part of the material needed to reproduce the release and must not
@@ -101,8 +101,12 @@ platform-specific copyleft component found while inspecting the final
 artifact. `THIRD_PARTY_NOTICES.md` is an attribution inventory, not a source
 offer.
 
-The package build copies `LICENSE`, `NOTICE`, this file, and
-`THIRD_PARTY_NOTICES.md` into the application resources. Inspect each produced
+Native runtime source and relinking materials are documented separately in
+`RUNTIME_NOTICES.md`; include the release-specific materials it identifies
+alongside the application and MuPDF source archives.
+
+The package build copies `LICENSE`, `NOTICE`, this file,
+`THIRD_PARTY_NOTICES.md`, and `RUNTIME_NOTICES.md` into the application resources. Inspect each produced
 archive or installer to confirm those files survived platform packaging. Also
 inspect the actual artifact for platform SDKs, optional native binaries,
 generated assets, and other components that the npm-derived notice inventory
