@@ -19,6 +19,8 @@ export default {
 			"NOTICE": "NOTICE",
 			"SOURCE.md": "SOURCE.md",
 			"THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
+			"RUNTIME_NOTICES.md": "RUNTIME_NOTICES.md",
+			"RUNTIME_RELINKING.md": "RUNTIME_RELINKING.md",
 		},
 		watchIgnore: ["dist/**"],
 		mac: {

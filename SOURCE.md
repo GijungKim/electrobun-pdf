@@ -26,6 +26,10 @@ bun test
 bun run build:stable
 ```
 
+Electrobun clears `artifacts/` during packaging. Keep downloaded third-party
+source archives and release notes in a separate staging directory until the
+final build finishes, then collect them with the generated application files.
+
 Create the source archive from the exact annotated release tag, not from the
 working tree. Replace the example tag before running these commands:
 
@@ -39,7 +43,8 @@ shasum -a 256 artifacts/*
 ```
 
 Publish the full commit ID, tag, source archive, checksum, binary artifacts,
-`LICENSE`, `NOTICE`, `THIRD_PARTY_NOTICES.md`, and `RUNTIME_NOTICES.md` together. Verify that the
+`LICENSE`, `NOTICE`, `THIRD_PARTY_NOTICES.md`, `RUNTIME_NOTICES.md`,
+`RUNTIME_RELINKING.md`, and the Cottontail runtime source packet together. Verify that the
 archive contains `bun.lock`, `package.json`, `electrobun.config.ts`, the
 `scripts/` directory, and all tracked buildable source. The lockfile and build
 scripts are part of the material needed to reproduce the release and must not
@@ -101,12 +106,25 @@ platform-specific copyleft component found while inspecting the final
 artifact. `THIRD_PARTY_NOTICES.md` is an attribution inventory, not a source
 offer.
 
-Native runtime source and relinking materials are documented separately in
-`RUNTIME_NOTICES.md`; include the release-specific materials it identifies
-alongside the application and MuPDF source archives.
+## Native runtime corresponding source
+
+The macOS runtime bundles Cottontail, which statically links JavaScriptCore and
+other libraries under notices and licenses documented in `RUNTIME_NOTICES.md`.
+The corresponding source and relinking materials are the Cottontail runtime
+source packet assembled by `scripts/assemble-runtime-source-packet.sh`:
+
+- `cottontail-0.5.0-runtime-source.tar.zst` (SHA-256
+  `15d47fe39cb187edefe860ba8af17e951ebf703e07649a09bc7d856b438d6758`)
+
+It contains the pinned Cottontail, JSC build, and WebKit sources, the exact JSC
+static objects, ICU/Brotli/OpenSSL/Zig sources, notices, provenance, and the
+`rebuild-cottontail-macos.sh` relinking recipe. `RUNTIME_RELINKING.md` describes
+the relink route. Produce a matching packet with
+`scripts/assemble-runtime-source-packet.sh` whenever the pinned Cottontail
+revision changes, and publish it with every binary release.
 
 The package build copies `LICENSE`, `NOTICE`, this file,
-`THIRD_PARTY_NOTICES.md`, and `RUNTIME_NOTICES.md` into the application resources. Inspect each produced
+`THIRD_PARTY_NOTICES.md`, `RUNTIME_NOTICES.md`, and `RUNTIME_RELINKING.md` into the application resources. Inspect each produced
 archive or installer to confirm those files survived platform packaging. Also
 inspect the actual artifact for platform SDKs, optional native binaries,
 generated assets, and other components that the npm-derived notice inventory
