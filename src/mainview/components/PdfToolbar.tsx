@@ -6,6 +6,7 @@ import {
 	FileDown,
 	Minus,
 	Plus,
+	Replace,
 } from "lucide-react";
 import type { Tool } from "./PdfAnnotationLayer";
 
@@ -98,6 +99,13 @@ export default function PdfToolbar({
 				title="Add text (T)"
 			>
 				<Type size={16} />
+			</Btn>
+			<Btn
+				onClick={() => onToolChange("replace")}
+				isActive={activeTool === "replace"}
+				title="Replace PDF text (R)"
+			>
+				<Replace size={16} />
 			</Btn>
 			<Btn
 				onClick={() => onToolChange("circle")}

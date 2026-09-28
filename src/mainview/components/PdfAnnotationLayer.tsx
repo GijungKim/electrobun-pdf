@@ -1,8 +1,9 @@
-import { memo, useCallback, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { PageAnnotations } from "../utils/annotations";
 import { circleFromDrag, clampPercent } from "../utils/geometry";
+import type { PdfTextRegion } from "../../shared/types";
 
-export type Tool = "select" | "text" | "circle";
+export type Tool = "select" | "replace" | "text" | "circle";
 
 /**
  * Report a change to this page's annotations. Pass `before` to make the change
@@ -22,6 +23,7 @@ interface PdfAnnotationLayerProps {
 	strokeWidth: number;
 	color: string;
 	annotations: PageAnnotations;
+	textRegions: readonly PdfTextRegion[];
 	onChange: AnnotationsChange;
 	onPageFocus?: (pageNum: number) => void;
 }
@@ -33,11 +35,15 @@ function PdfAnnotationLayer({
 	strokeWidth,
 	color,
 	annotations,
+	textRegions,
 	onChange,
 	onPageFocus,
 }: PdfAnnotationLayerProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
-	const { texts, circles } = annotations;
+	const { texts, circles, replacements } = annotations;
+	const [editingRegionId, setEditingRegionId] = useState<string | null>(null);
+	const [replacementDraft, setReplacementDraft] = useState("");
+	const [pageScale, setPageScale] = useState(1);
 	const [editingTextId, setEditingTextId] = useState<string | null>(null);
 	const [hoveredCircleId, setHoveredCircleId] = useState<string | null>(null);
 	const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -59,6 +65,17 @@ function PdfAnnotationLayer({
 		currentY: number;
 	} | null>(null);
 
+	useEffect(() => {
+		const container = containerRef.current;
+		const pageWidth = textRegions[0]?.pageWidth;
+		if (!container || !pageWidth) return;
+		const updateScale = () => setPageScale(container.clientWidth / pageWidth);
+		updateScale();
+		const observer = new ResizeObserver(updateScale);
+		observer.observe(container);
+		return () => observer.disconnect();
+	}, [textRegions]);
+
 	// End text editing, discarding the annotation if it was left empty.
 	const finishEditingText = useCallback(
 		(id: string) => {
@@ -67,12 +84,13 @@ function PdfAnnotationLayer({
 				onChange(pageNum, {
 					texts: texts.filter((t) => t.id !== id),
 					circles,
+					replacements,
 				});
 			}
 			if (pendingTextRef.current?.id === id) pendingTextRef.current = null;
 			setEditingTextId((prev) => (prev === id ? null : prev));
 		},
-		[texts, circles, onChange, pageNum],
+		[texts, circles, replacements, onChange, pageNum],
 	);
 
 	const getRelativePos = useCallback((e: React.MouseEvent) => {
@@ -97,6 +115,7 @@ function PdfAnnotationLayer({
 						{ id, x: pos.x, y: pos.y, text: "", fontSize: 16, color },
 					],
 					circles,
+					replacements,
 				});
 				setEditingTextId(id);
 			} else if (activeTool === "circle") {
@@ -120,6 +139,7 @@ function PdfAnnotationLayer({
 			annotations,
 			texts,
 			circles,
+			replacements,
 			onChange,
 		],
 	);
@@ -145,19 +165,21 @@ function PdfAnnotationLayer({
 								t.id === draggingId ? { ...t, x, y } : t,
 							),
 							circles,
+							replacements,
 						}
 					: {
 							texts,
 							circles: circles.map((c) =>
 								c.id === draggingId ? { ...c, cx: x, cy: y } : c,
 							),
+							replacements,
 						};
 			// First move records the undo point; subsequent moves are transient.
 			const before = dragBeforeRef.current ?? undefined;
 			dragBeforeRef.current = null;
 			onChange(pageNum, next, before);
 		},
-		[drawingCircle, draggingId, getRelativePos, texts, circles, onChange, pageNum],
+		[drawingCircle, draggingId, getRelativePos, texts, circles, replacements, onChange, pageNum],
 	);
 
 	const handleMouseUp = useCallback(() => {
@@ -178,6 +200,7 @@ function PdfAnnotationLayer({
 							...circles,
 							{ id: `circle-${Date.now()}`, cx, cy, rx, ry, color, strokeWidth },
 						],
+						replacements,
 					},
 					annotations,
 				);
@@ -198,6 +221,7 @@ function PdfAnnotationLayer({
 		annotations,
 		texts,
 		circles,
+		replacements,
 		onChange,
 		pageNum,
 	]);
@@ -240,6 +264,7 @@ function PdfAnnotationLayer({
 			const next: PageAnnotations = {
 				texts: texts.map((t) => (t.id === id ? { ...t, text } : t)),
 				circles,
+				replacements,
 			};
 			const pending = pendingTextRef.current;
 			if (pending?.id === id && text.trim() !== "") {
@@ -249,7 +274,7 @@ function PdfAnnotationLayer({
 				onChange(pageNum, next);
 			}
 		},
-		[texts, circles, onChange, pageNum],
+		[texts, circles, replacements, onChange, pageNum],
 	);
 
 	const deleteAnnotation = useCallback(
@@ -260,13 +285,84 @@ function PdfAnnotationLayer({
 				{
 					texts: texts.filter((t) => t.id !== id),
 					circles: circles.filter((c) => c.id !== id),
+					replacements,
 				},
 				annotations,
 			);
 			if (editingTextId === id) setEditingTextId(null);
 		},
-		[editingTextId, onPageFocus, pageNum, annotations, texts, circles, onChange],
+		[editingTextId, onPageFocus, pageNum, annotations, texts, circles, replacements, onChange],
 	);
+
+	const startReplacement = useCallback(
+		(e: React.MouseEvent, region: PdfTextRegion) => {
+			e.stopPropagation();
+			onPageFocus?.(pageNum);
+			setEditingRegionId(region.id);
+			setReplacementDraft(
+				replacements.find((item) => item.regionId === region.id)?.text ?? region.text,
+			);
+		},
+		[onPageFocus, pageNum, replacements],
+	);
+
+	const finishReplacement = useCallback(() => {
+		const region = textRegions.find((item) => item.id === editingRegionId);
+		setEditingRegionId(null);
+		if (!region) return;
+		const value = replacementDraft.trim();
+		if (!value) return;
+		if (value === region.text) {
+			if (replacements.some((item) => item.regionId === region.id)) {
+				onChange(
+					pageNum,
+					{
+						texts,
+						circles,
+						replacements: replacements.filter(
+							(item) => item.regionId !== region.id,
+						),
+					},
+					annotations,
+				);
+			}
+			return;
+		}
+		const replacement = {
+			regionId: region.id,
+			originalText: region.text,
+			text: value,
+			rect: region.rect,
+			fontSize: region.fontSize,
+			fontFamily: region.fontFamily,
+			fontName: region.fontName,
+			fontStyle: region.fontStyle,
+			baseline: region.baseline,
+			color: region.color,
+		};
+		onChange(
+			pageNum,
+			{
+				texts,
+				circles,
+				replacements: [
+					...replacements.filter((item) => item.regionId !== region.id),
+					replacement,
+				],
+			},
+			annotations,
+		);
+	}, [
+		editingRegionId,
+		replacementDraft,
+		textRegions,
+		onChange,
+		pageNum,
+		texts,
+		circles,
+		replacements,
+		annotations,
+	]);
 
 	const previewCircle = drawingCircle
 		? circleFromDrag(
@@ -281,11 +377,13 @@ function PdfAnnotationLayer({
 	const cursorClass =
 		activeTool === "text"
 			? "cursor-text"
-			: activeTool === "circle"
-				? "cursor-crosshair"
-				: isDragging
-					? "cursor-grabbing"
-					: "cursor-default";
+			: activeTool === "replace"
+				? "cursor-text"
+				: activeTool === "circle"
+					? "cursor-crosshair"
+					: isDragging
+						? "cursor-grabbing"
+						: "cursor-default";
 
 	return (
 		<div
@@ -302,6 +400,82 @@ function PdfAnnotationLayer({
 				className="w-full h-auto block select-none pointer-events-none"
 				draggable={false}
 			/>
+			{activeTool === "replace" && (
+				<div className="absolute right-2 top-2 z-10 rounded bg-surface-950/80 px-2 py-1 text-[10px] text-white pointer-events-none">
+					Original fonts are reused when possible · fallback is reported on export
+				</div>
+			)}
+
+			{/* MuPDF word geometry: click a word in Replace mode to edit it. */}
+			{textRegions.map((region) => {
+				const [x1, y1, x2, y2] = region.percentRect;
+				const replacement = replacements.find(
+					(item) => item.regionId === region.id,
+				);
+				const fontSizePoints = replacement
+					? Math.max(
+							5,
+							Math.min(
+								region.fontSize,
+								region.fontSize *
+									([...region.text].length /
+										Math.max(1, [...replacement.text].length)),
+							),
+						)
+					: region.fontSize;
+				const fontSize = fontSizePoints * pageScale;
+				return (
+					<div
+						key={region.id}
+						className={`absolute ${activeTool === "replace" ? "hover:outline hover:outline-2 hover:outline-accent/80 bg-accent/5" : "pointer-events-none"}`}
+						style={{
+							left: `${x1}%`,
+							top: `${y1}%`,
+							width: `${x2 - x1}%`,
+							height: `${y2 - y1}%`,
+						}}
+						onClick={(event) =>
+							activeTool === "replace" && startReplacement(event, region)
+						}
+					>
+						{replacement && editingRegionId !== region.id && (
+							<span
+								className="absolute inset-0 bg-white whitespace-nowrap leading-none flex items-center"
+								style={{
+									fontSize,
+									fontFamily:
+										region.fontFamily === "Times-Roman"
+											? "Times New Roman, serif"
+											: region.fontFamily === "Courier"
+												? "Courier New, monospace"
+												: "Arial, Helvetica, sans-serif",
+									fontWeight: region.fontStyle?.bold ? 700 : 400,
+									fontStyle: region.fontStyle?.italic ? "italic" : "normal",
+									color: `rgb(${replacement.color.map((v) => Math.round(v * 255)).join(",")})`,
+								}}
+							>
+								{replacement.text}
+							</span>
+						)}
+						{editingRegionId === region.id && (
+							<input
+								autoFocus
+								aria-label={`Replace ${region.text}`}
+								value={replacementDraft}
+								onChange={(event) => setReplacementDraft(event.target.value)}
+								onBlur={finishReplacement}
+								onKeyDown={(event) => {
+									if (event.key === "Enter") event.currentTarget.blur();
+									if (event.key === "Escape") setEditingRegionId(null);
+								}}
+								onClick={(event) => event.stopPropagation()}
+								className="absolute left-0 top-0 z-20 min-w-[8rem] bg-white border border-accent rounded-sm px-1 py-0.5 text-surface-950 shadow-lg outline-none"
+								style={{ fontSize: Math.max(11, region.fontSize * pageScale) }}
+							/>
+						)}
+					</div>
+				);
+			})}
 
 			{/* SVG overlay for circles */}
 			<svg

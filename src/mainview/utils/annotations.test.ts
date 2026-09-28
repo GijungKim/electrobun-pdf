@@ -33,8 +33,8 @@ describe("annotations document", () => {
 	});
 
 	test("withPage replaces one slice and leaves the others' identity intact", () => {
-		const p1: PageAnnotations = { texts: [text("a")], circles: [] };
-		const p2: PageAnnotations = { texts: [], circles: [circle("c")] };
+		const p1: PageAnnotations = { texts: [text("a")], circles: [], replacements: [] };
+		const p2: PageAnnotations = { texts: [], circles: [circle("c")], replacements: [] };
 		const doc = withPage(withPage(EMPTY_DOC, 1, p1), 2, p2);
 		const next = withPage(doc, 2, EMPTY_PAGE);
 		expect(pageAnnotations(next, 1)).toBe(p1);
@@ -43,7 +43,7 @@ describe("annotations document", () => {
 	});
 
 	test("changedPage finds the page that differs, including added and removed pages", () => {
-		const p1: PageAnnotations = { texts: [text("a")], circles: [] };
+		const p1: PageAnnotations = { texts: [text("a")], circles: [], replacements: [] };
 		const doc = withPage(EMPTY_DOC, 4, p1);
 		expect(changedPage(EMPTY_DOC, doc)).toBe(4);
 		expect(changedPage(doc, EMPTY_DOC)).toBe(4);
@@ -56,6 +56,7 @@ describe("annotations document", () => {
 		const page: PageAnnotations = {
 			texts: [text("a", "keep"), text("b", "   ")],
 			circles: [circle("c")],
+			replacements: [],
 		};
 		expect(toExportAnnotations(page)).toEqual([
 			{ type: "text", x: 10, y: 20, text: "keep", fontSize: 16, color: "#000" },

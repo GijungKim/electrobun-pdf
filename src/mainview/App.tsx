@@ -22,6 +22,7 @@ import PdfAnnotationLayer, {
 import {
 	triggerOpen,
 	triggerExport,
+	exportEditedPdf,
 	openFileData,
 	onMenuAction,
 	onFileOpened,
@@ -30,7 +31,7 @@ import {
 	onFileSaved,
 	onStatusUpdate,
 } from "./rpc";
-import { exportToPdf, exportEditorToPdf, uint8ToBase64 } from "./utils/fileHandlers";
+import { exportEditorToPdf, uint8ToBase64 } from "./utils/fileHandlers";
 import type { ProseNode } from "./utils/docExport";
 import {
 	EMPTY_DOC,
@@ -48,12 +49,14 @@ import {
 	undo,
 	type History,
 } from "./utils/history";
+import type { PdfTextRegion } from "../shared/types";
 
 export default function App() {
 	const [fileName, setFileName] = useState<string | null>(null);
 	const [status, setStatus] = useState("");
 	const [showEditor, setShowEditor] = useState(false);
 	const [pdfPages, setPdfPages] = useState<string[]>([]);
+	const [pdfTextRegions, setPdfTextRegions] = useState<PdfTextRegion[][]>([]);
 	const [isPdf, setIsPdf] = useState(false);
 	const pdfReadyRef = useRef(false);
 	const [activeTool, setActiveTool] = useState<Tool>("select");
@@ -167,15 +170,22 @@ export default function App() {
 			let pdfBytes: Uint8Array;
 
 			if (isPdf) {
-				// Build export pages from images + annotations
 				const doc = historyRef.current.present;
-				const exportPages = pdfPages
-					.filter(Boolean)
-					.map((imageDataUrl, i) => ({
-						imageDataUrl,
-						annotations: toExportAnnotations(pageAnnotations(doc, i + 1)),
-					}));
-				pdfBytes = await exportToPdf(exportPages);
+				const baseName = fileName
+					? fileName.replace(/\.[^.]+$/, "")
+					: "document";
+				exportEditedPdf(
+					`${baseName}-edited.pdf`,
+					pdfPages.map((_imageDataUrl, i) => {
+						const page = pageAnnotations(doc, i + 1);
+						return {
+							pageNum: i + 1,
+							replacements: [...page.replacements],
+							annotations: toExportAnnotations(page),
+						};
+					}),
+				);
+				return;
 			} else {
 				if (!editor) return;
 				pdfBytes = await exportEditorToPdf(editor.getJSON() as unknown as ProseNode);
@@ -304,6 +314,7 @@ export default function App() {
 			if (e.key === "v" || e.key === "V") setActiveTool("select");
 			if (e.key === "t" || e.key === "T") setActiveTool("text");
 			if (e.key === "c" || e.key === "C") setActiveTool("circle");
+			if (e.key === "r" || e.key === "R") setActiveTool("replace");
 		};
 		window.addEventListener("keydown", handler);
 		return () => window.removeEventListener("keydown", handler);
@@ -321,6 +332,7 @@ export default function App() {
 		onFileOpened((data) => {
 			// Clear previous state, then load new DOCX
 			setPdfPages([]);
+			setPdfTextRegions([]);
 			setIsPdf(false);
 			setActiveTool("select");
 			setTotalPages(0);
@@ -346,6 +358,11 @@ export default function App() {
 				}
 				const updated = [...prev];
 				updated[data.pageNum - 1] = data.imageDataUrl;
+				return updated;
+			});
+			setPdfTextRegions((prev) => {
+				const updated = data.pageNum === 1 ? [] : [...prev];
+				updated[data.pageNum - 1] = data.textRegions;
 				return updated;
 			});
 		});
@@ -447,6 +464,7 @@ export default function App() {
 										strokeWidth={strokeWidth}
 										color={annotationColor}
 										annotations={pageAnnotations(history.present, i + 1)}
+										textRegions={pdfTextRegions[i] ?? []}
 										onChange={handleAnnotationsChange}
 										onPageFocus={setActivePageNum}
 									/>

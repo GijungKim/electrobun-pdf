@@ -2,6 +2,12 @@
   "name": "electrobun-pdf",
   "version": "1.0.0",
   "description": "Local-first document editor - edit PDFs and DOCX files, export to PDF",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GijungKim/electrobun-pdf.git"
+  },
+  "homepage": "https://github.com/GijungKim/electrobun-pdf#readme",
   "scripts": {
     "sync": "electrobun sync",
     "start": "bun run sync && vite build && electrobun dev",
@@ -11,7 +17,8 @@
     "build:canary": "bun run sync && vite build && electrobun build --env=canary",
     "build:stable": "bun run sync && vite build && electrobun build --env=stable",
     "typecheck": "bun run sync && tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "notices": "bun scripts/generate-third-party-notices.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.19",

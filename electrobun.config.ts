@@ -15,6 +15,10 @@ export default {
 			"dist/index.html": "views/mainview/index.html",
 			"dist/assets": "views/mainview/assets",
 			"node_modules/mupdf/dist/mupdf-wasm.wasm": "bun/mupdf-wasm.wasm",
+			"LICENSE": "LICENSE",
+			"NOTICE": "NOTICE",
+			"SOURCE.md": "SOURCE.md",
+			"THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
 		},
 		watchIgnore: ["dist/**"],
 		mac: {

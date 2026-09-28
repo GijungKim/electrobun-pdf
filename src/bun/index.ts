@@ -6,10 +6,11 @@ import Electrobun, {
 	Utils,
 } from "electrobun/bun";
 import type { AppRPC } from "../shared/types";
-import { parseDocx, PdfRenderer } from "./fileParser";
+import { editPdfWithDiagnostics, parseDocx, PdfRenderer } from "./fileParser";
 
 const DEV_SERVER_PORT = 5173;
 const DEV_SERVER_URL = `http://localhost:${DEV_SERVER_PORT}`;
+let currentPdfBuffer: Buffer | null = null;
 
 async function getMainViewUrl(): Promise<string> {
 	const channel = await Updater.localInfo.channel();
@@ -35,6 +36,7 @@ async function processDocument(fileName: string, nodeBuffer: Buffer) {
 
 	try {
 		if (fileType === "pdf") {
+			currentPdfBuffer = Buffer.from(nodeBuffer);
 			const renderer = new PdfRenderer(nodeBuffer);
 			try {
 				const totalPages = renderer.pageCount;
@@ -46,6 +48,7 @@ async function processDocument(fileName: string, nodeBuffer: Buffer) {
 					});
 					console.log(`[bun] Rendering page ${p}/${totalPages}...`);
 					const imageDataUrl = renderer.renderPage(p, 2);
+					const textRegions = renderer.extractTextRegions(p);
 					console.log(
 						`[bun] Page ${p} rendered (${imageDataUrl.length} chars)`,
 					);
@@ -53,6 +56,7 @@ async function processDocument(fileName: string, nodeBuffer: Buffer) {
 						pageNum: p,
 						totalPages,
 						imageDataUrl,
+						textRegions,
 					});
 				}
 
@@ -62,6 +66,7 @@ async function processDocument(fileName: string, nodeBuffer: Buffer) {
 				renderer.destroy();
 			}
 		} else if (fileType === "docx") {
+			currentPdfBuffer = null;
 			const arrayBuffer = nodeBuffer.buffer.slice(
 				nodeBuffer.byteOffset,
 				nodeBuffer.byteOffset + nodeBuffer.byteLength,
@@ -121,49 +126,66 @@ const rpc = BrowserView.defineRPC<AppRPC>({
 
 			triggerExport: async ({ data, fileName }) => {
 				try {
-					// Let user pick a destination folder
-					const paths = await Utils.openFileDialog({
-						startingFolder: Utils.paths.documents,
-						allowedFileTypes: "*",
-						canChooseFiles: false,
-						canChooseDirectory: true,
-						allowsMultipleSelection: false,
-					});
-
-					if (!paths || paths.length === 0) {
-						console.log("[bun] Export cancelled");
-						mainWindow.webview.rpc?.send.statusUpdate({ status: "Export cancelled" });
-						return;
-					}
-
-					const destDir = paths[0];
-					let savePath = `${destDir}/${fileName}`;
-
-					// Avoid overwriting existing files by appending a number
-					const ext = fileName.includes(".") ? `.${fileName.split(".").pop()}` : "";
-					const baseName = ext ? fileName.slice(0, -ext.length) : fileName;
-					let counter = 1;
-					while (await Bun.file(savePath).exists()) {
-						savePath = `${destDir}/${baseName} (${counter})${ext}`;
-						counter++;
-					}
-
-					const buffer = Buffer.from(data, "base64");
-					await Bun.write(savePath, buffer);
-					console.log(`[bun] Exported ${buffer.length} bytes to ${savePath}`);
-					Utils.showItemInFolder(savePath);
-					mainWindow.webview.rpc?.send.fileSaved({
-						success: true,
-						path: savePath,
-					});
+					await saveExport(Buffer.from(data, "base64"), fileName);
 				} catch (err) {
 					console.error("[bun] Save error:", err);
 					mainWindow.webview.rpc?.send.fileSaved({ success: false });
 				}
 			},
+
+			exportEditedPdf: async ({ fileName, pages }) => {
+				if (!currentPdfBuffer) {
+					mainWindow.webview.rpc?.send.statusUpdate({
+						status: "The original PDF is no longer available",
+					});
+					return;
+				}
+				try {
+					mainWindow.webview.rpc?.send.statusUpdate({ status: "Applying PDF edits..." });
+					const { data, warnings } = editPdfWithDiagnostics(currentPdfBuffer, pages);
+					await saveExport(Buffer.from(data), fileName);
+					if (warnings.length > 0) {
+						mainWindow.webview.rpc?.send.statusUpdate({
+							status: `Exported with font fallback: ${warnings.join(" ")}`,
+						});
+					}
+				} catch (err) {
+					console.error("[bun] PDF edit/export error:", err);
+					mainWindow.webview.rpc?.send.statusUpdate({
+						status: `Cannot export replacement: ${err instanceof Error ? err.message : String(err)}`,
+					});
+				}
+			},
 		},
 	},
 });
+
+async function saveExport(buffer: Buffer, fileName: string): Promise<void> {
+	const paths = await Utils.openFileDialog({
+		startingFolder: Utils.paths.documents,
+		allowedFileTypes: "*",
+		canChooseFiles: false,
+		canChooseDirectory: true,
+		allowsMultipleSelection: false,
+	});
+	if (!paths || paths.length === 0) {
+		mainWindow.webview.rpc?.send.statusUpdate({ status: "Export cancelled" });
+		return;
+	}
+
+	const destDir = paths[0];
+	let savePath = `${destDir}/${fileName}`;
+	const ext = fileName.includes(".") ? `.${fileName.split(".").pop()}` : "";
+	const baseName = ext ? fileName.slice(0, -ext.length) : fileName;
+	let counter = 1;
+	while (await Bun.file(savePath).exists()) {
+		savePath = `${destDir}/${baseName} (${counter})${ext}`;
+		counter++;
+	}
+	await Bun.write(savePath, buffer);
+	Utils.showItemInFolder(savePath);
+	mainWindow.webview.rpc?.send.fileSaved({ success: true, path: savePath });
+}
 
 const url = await getMainViewUrl();
 
@@ -217,11 +239,24 @@ ApplicationMenu.setApplicationMenu([
 			{ role: "zoom" },
 		],
 	},
+	{
+		label: "Help",
+		submenu: [
+			{ label: "Source Code", action: "sourceCode" },
+			{ label: "License", action: "license" },
+		],
+	},
 ]);
 
 Electrobun.events.on("application-menu-clicked", (e) => {
 	const action = e.data.action;
-	if (action) {
+	if (action === "sourceCode") {
+		void Utils.openExternal("https://github.com/GijungKim/electrobun-pdf");
+	} else if (action === "license") {
+		void Utils.openExternal(
+			"https://github.com/GijungKim/electrobun-pdf/blob/main/LICENSE",
+		);
+	} else if (action) {
 		mainWindow.webview.rpc?.send.menuAction({ action });
 	}
 });

@@ -4,6 +4,7 @@
 // stores these snapshots directly, sharing untouched page slices between them.
 
 import type { ExportAnnotation } from "./fileHandlers";
+import type { PdfTextReplacement } from "../../shared/types";
 
 export interface TextAnnotation {
 	id: string;
@@ -27,6 +28,7 @@ export interface CircleAnnotation {
 export interface PageAnnotations {
 	readonly texts: readonly TextAnnotation[];
 	readonly circles: readonly CircleAnnotation[];
+	readonly replacements: readonly PdfTextReplacement[];
 }
 
 export type DocAnnotations = Readonly<Record<number, PageAnnotations>>;
@@ -34,6 +36,7 @@ export type DocAnnotations = Readonly<Record<number, PageAnnotations>>;
 export const EMPTY_PAGE: PageAnnotations = Object.freeze({
 	texts: Object.freeze([]) as readonly TextAnnotation[],
 	circles: Object.freeze([]) as readonly CircleAnnotation[],
+	replacements: Object.freeze([]) as readonly PdfTextReplacement[],
 });
 
 export const EMPTY_DOC: DocAnnotations = Object.freeze({});

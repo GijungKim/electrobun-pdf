@@ -1,5 +1,5 @@
 import { Electroview } from "electrobun/view";
-import type { AppRPC } from "../shared/types";
+import type { AppRPC, NativePdfPageEdits, PdfTextRegion } from "../shared/types";
 
 type Callback<T> = (data: T) => void;
 
@@ -14,6 +14,7 @@ const callbacks = {
 		pageNum: number;
 		totalPages: number;
 		imageDataUrl: string;
+		textRegions: PdfTextRegion[];
 	}> | null,
 	pdfDone: null as Callback<{ fileName: string; totalPages: number }> | null,
 	fileSaved: null as Callback<{ success: boolean; path?: string }> | null,
@@ -77,4 +78,8 @@ export function openFileData(fileName: string, data: string) {
 
 export function triggerExport(data: string, fileName: string) {
 	electroview.rpc!.send.triggerExport({ data, fileName });
+}
+
+export function exportEditedPdf(fileName: string, pages: NativePdfPageEdits[]) {
+	electroview.rpc!.send.exportEditedPdf({ fileName, pages });
 }
