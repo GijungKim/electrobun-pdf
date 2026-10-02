@@ -48,7 +48,7 @@
     "@vitejs/plugin-react": "^6.0.0",
     "autoprefixer": "^10.4.20",
     "concurrently": "^10.0.0",
-    "electrobun": "2.0.1",
+    "electrobun": "2.0.2",
     "postcss": "^8.4.49",
     "tailwindcss": "^4.0.0",
     "typescript": "^7.0.0",
