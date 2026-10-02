@@ -1,0 +1,8 @@
+{
+	"$schema": "https://raw.githubusercontent.com/GijungKim/resolve-prs/main/skills/resolve-prs/references/policy.schema.json",
+	"validation": {
+		"lowRisk": ["typecheck", "test"],
+		"mediumRisk": ["install", "typecheck", "test"],
+		"highRisk": ["install", "typecheck", "test", "build"]
+	}
+}
